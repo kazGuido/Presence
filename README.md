@@ -36,6 +36,8 @@ npm run dev
 
 Vite proxies `/api` to `http://127.0.0.1:8000`.
 
+With **`DEMO_SEED=1`** (see Compose / `.env`), first startup seeds **demo-corp**: employer `boss@example.com` / `demo-demo`, multiple employees (PIN **1234**), two work sites, and **past punch history** for analytics — only when that company still has **zero** punches (so existing databases are not overwritten).
+
 ## Production (single process)
 
 Build the UI into `backend/app/static`, then run uvicorn (see `Dockerfile`).

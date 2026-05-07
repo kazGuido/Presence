@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { WorkSiteMap } from '../components/WorkSiteMap';
 import { MobileHexTabBar, type HexTabItem } from '../components/MobileHexTabBar';
 import { apiFetch, getEmployerToken, setEmployerToken } from '../api/client';
 
@@ -389,10 +390,12 @@ export function EmployerDashboard() {
 type Site = { id: string; name: string; lat: number; lng: number; radius_m: number };
 
 export function EmployerSites() {
+  const { t } = useTranslation();
   const [sites, setSites] = useState<Site[]>([]);
   const [name, setName] = useState('');
-  const [lat, setLat] = useState('5.3364');
-  const [lng, setLng] = useState('-4.0277');
+  const [lat, setLat] = useState(5.3364);
+  const [lng, setLng] = useState(-4.0277);
+  const [radiusM, setRadiusM] = useState(200);
   const [err, setErr] = useState<string | null>(null);
 
   const load = () =>
@@ -411,21 +414,39 @@ export function EmployerSites() {
     try {
       await apiFetch('/api/work-sites', {
         method: 'POST',
-        body: JSON.stringify({ name, lat: parseFloat(lat), lng: parseFloat(lng), radius_m: 200 }),
+        body: JSON.stringify({
+          name,
+          lat,
+          lng,
+          radius_m: radiusM,
+        }),
       });
       setName('');
       await load();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erreur');
+      setErr(e instanceof Error ? e.message : t('common.error'));
     }
+  };
+
+  const onMapMove = (la: number, lo: number) => {
+    setLat(Math.round(la * 1e6) / 1e6);
+    setLng(Math.round(lo * 1e6) / 1e6);
   };
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-on-surface md:text-3xl">Sites de travail</h1>
-        <p className="mt-1 text-on-surface-variant">Géofences pour valider les pointages sur le terrain.</p>
+        <h1 className="text-2xl font-bold text-on-surface md:text-3xl">{t('employer.sitesTitle')}</h1>
+        <p className="mt-1 text-on-surface-variant">{t('employer.sitesSubtitle')}</p>
       </div>
+
+      <WorkSiteMap
+        lat={lat}
+        lng={lng}
+        radiusM={radiusM}
+        onPositionChange={onMapMove}
+        mapClickHint={t('employer.sitesMapHint')}
+      />
 
       <form
         onSubmit={(e) => void add(e)}
@@ -433,31 +454,57 @@ export function EmployerSites() {
       >
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-primary">
           <span className="material-symbols-outlined text-xl">add_location_alt</span>
-          Nouveau site
+          {t('employer.sitesNew')}
         </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <input
-            className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 text-sm"
-            placeholder="Nom du site"
+            className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 text-sm sm:col-span-2"
+            placeholder={t('employer.sitesNamePh')}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <input
-            className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 font-mono text-sm"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            aria-label="Latitude"
-          />
-          <input
-            className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 font-mono text-sm"
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-            aria-label="Longitude"
-          />
-          <button type="submit" className="rounded-xl bg-primary py-2.5 text-sm font-semibold text-on-primary shadow-sm">
-            Ajouter le site
-          </button>
+          <label className="flex flex-col gap-1 text-xs text-on-surface-variant">
+            <span>{t('employer.sitesLat')}</span>
+            <input
+              className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 font-mono text-sm"
+              type="number"
+              step="any"
+              value={lat}
+              onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
+              aria-label={t('employer.sitesLat')}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-on-surface-variant">
+            <span>{t('employer.sitesLng')}</span>
+            <input
+              className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 font-mono text-sm"
+              type="number"
+              step="any"
+              value={lng}
+              onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
+              aria-label={t('employer.sitesLng')}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-on-surface-variant">
+            <span>{t('employer.sitesRadius')}</span>
+            <input
+              className="rounded-xl border border-outline/25 bg-surface px-3 py-2.5 font-mono text-sm"
+              type="number"
+              min={30}
+              max={5000}
+              step={10}
+              value={radiusM}
+              onChange={(e) => setRadiusM(parseInt(e.target.value, 10) || 200)}
+              aria-label={t('employer.sitesRadius')}
+            />
+          </label>
         </div>
+        <button
+          type="submit"
+          className="mt-4 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-on-primary shadow-sm sm:w-auto sm:px-8"
+        >
+          {t('employer.sitesAdd')}
+        </button>
       </form>
 
       {err && <p className="text-sm text-error">{err}</p>}
@@ -468,19 +515,16 @@ export function EmployerSites() {
             key={s.id}
             className="group relative overflow-hidden rounded-2xl border border-outline/15 bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md"
           >
-            <div
-              className="h-28 bg-gradient-to-br from-primary/20 via-surface-container to-secondary-container/25"
-              style={{
-                backgroundImage: `radial-gradient(circle at 30% 40%, rgba(0,70,40,0.25) 0%, transparent 45%),
-                  radial-gradient(circle at 70% 60%, rgba(253,133,53,0.15) 0%, transparent 40%)`,
-              }}
-            />
-            <div className="absolute left-4 top-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-surface/95 shadow-md ring-1 ring-primary/20">
-              <span className="material-symbols-outlined text-3xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                location_on
-              </span>
+            <div className="relative h-36 w-full overflow-hidden">
+              <WorkSiteMap
+                lat={s.lat}
+                lng={s.lng}
+                radiusM={s.radius_m}
+                onPositionChange={() => {}}
+                interactive={false}
+              />
             </div>
-            <div className="p-5 pt-2">
+            <div className="p-5 pt-3">
               <h3 className="text-lg font-semibold text-on-surface">{s.name}</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-medium text-on-primary-container">
@@ -498,7 +542,9 @@ export function EmployerSites() {
           </article>
         ))}
       </div>
-      {sites.length === 0 && !err && <p className="text-center text-on-surface-variant">Aucun site — ajoutez votre premier lieu.</p>}
+      {sites.length === 0 && !err && (
+        <p className="text-center text-on-surface-variant">{t('employer.sitesEmpty')}</p>
+      )}
     </div>
   );
 }
