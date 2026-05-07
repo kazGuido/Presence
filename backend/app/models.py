@@ -35,6 +35,7 @@ class PunchSource(str, enum.Enum):
     app = "app"
     whatsapp_link = "whatsapp_link"
     controller_scan = "controller_scan"
+    controller_manual = "controller_manual"
 
 
 class AttendanceSessionStatus(str, enum.Enum):
