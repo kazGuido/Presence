@@ -9,7 +9,8 @@ import path from "node:path";
 import express from "express";
 import pino from "pino";
 import QRCode from "qrcode";
-import makeWASocket, {
+import {
+  makeWASocket,
   DisconnectReason,
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
