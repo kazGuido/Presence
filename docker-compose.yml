@@ -1,22 +1,121 @@
 services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_secret}
+    ports:
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-19001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin_secret} &&
+        mc mb local/${MINIO_BUCKET:-attendance} --ignore-existing
+    restart: "no"
+
   api:
     build: .
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
+      DATABASE_URL: sqlite:////app/data/app.db
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       WHATSAPP_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:3005}
       WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
-      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8000}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://presence.nicedaytech.com}
       DEMO_SEED: ${DEMO_SEED:-1}
+      REDIS_URL: redis://redis:6379/0
+      UPLOAD_DIR: /app/uploads
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin_secret}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance}
+      MINIO_SECURE: "false"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Attendance}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      REMINDER_LEAD_MINUTES: ${REMINDER_LEAD_MINUTES:-30}
     volumes:
       - api_data:/app/data
       - api_uploads:/app/uploads
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      whatsapp-bridge:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      DATABASE_URL: sqlite:////app/data/app.db
+      REDIS_URL: redis://redis:6379/0
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://presence.nicedaytech.com}
+      WHATSAPP_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:3005}
+      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin_secret}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance}
+      MINIO_SECURE: "false"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Attendance}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      REMINDER_LEAD_MINUTES: ${REMINDER_LEAD_MINUTES:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - api_data:/app/data
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      whatsapp-bridge:
+        condition: service_started
 
   whatsapp-bridge:
     build: ./whatsapp-bridge
     ports:
-      - "127.0.0.1:${WA_BRIDGE_PORT:-3005}:3005"
+      - "127.0.0.1:${WA_BRIDGE_PORT:-13005}:3005"
     environment:
       WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
       LOG_LEVEL: info
@@ -26,4 +125,5 @@ services:
 volumes:
   api_data:
   api_uploads:
+  minio_data:
   wa_auth:

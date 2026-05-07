@@ -33,9 +33,12 @@ def create_employee(
     emp = Employee(
         company_id=company.id,
         display_name=body.display_name.strip(),
+        email=str(body.email) if body.email else None,
         phone_e164=body.phone_e164,
         pin_hash=hash_password(body.pin),
         default_work_site_id=body.default_work_site_id,
+        notify_email=body.notify_email,
+        notify_whatsapp=body.notify_whatsapp,
     )
     db.add(emp)
     db.commit()

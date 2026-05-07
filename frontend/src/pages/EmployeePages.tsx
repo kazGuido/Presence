@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, getEmployeeToken } from '../api/client';
 
@@ -176,10 +176,174 @@ export function EmployeeHistorique() {
 }
 
 export function EmployeeParametres() {
+  const token = getEmployeeToken();
+  const [email, setEmail] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyWa, setNotifyWa] = useState(true);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [waVerified, setWaVerified] = useState(false);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [channel, setChannel] = useState<'email' | 'whatsapp'>('email');
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = () => {
+    if (!token) return;
+    setErr(null);
+    void apiFetch('/api/employee/communication/me', { token })
+      .then((r) => r.json() as Promise<{
+        email: string | null;
+        phone_e164: string | null;
+        notify_email: boolean;
+        notify_whatsapp: boolean;
+        email_verified: boolean;
+        whatsapp_verified: boolean;
+      }>)
+      .then((j) => {
+        setEmail(j.email ?? '');
+        setNotifyEmail(j.notify_email);
+        setNotifyWa(j.notify_whatsapp);
+        setEmailVerified(j.email_verified);
+        setWaVerified(j.whatsapp_verified);
+        setPhone(j.phone_e164);
+      })
+      .catch((e: Error) => setErr(e.message));
+  };
+
+  useEffect(() => {
+    load();
+  }, [token]);
+
+  const savePrefs = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setErr(null);
+    setMsg(null);
+    try {
+      const body: Record<string, unknown> = {
+        notify_email: notifyEmail,
+        notify_whatsapp: notifyWa,
+      };
+      if (email.trim()) body.email = email.trim();
+      await apiFetch('/api/employee/communication/me', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify(body),
+      });
+      setMsg('Préférences enregistrées.');
+      load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Erreur');
+    }
+  };
+
+  const requestCode = async () => {
+    if (!token) return;
+    setErr(null);
+    setMsg(null);
+    try {
+      await apiFetch('/api/employee/communication/verify/request', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ channel }),
+      });
+      setMsg(`Code envoyé (${channel === 'email' ? 'e-mail' : 'WhatsApp'}).`);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Erreur');
+    }
+  };
+
+  const confirmCode = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setErr(null);
+    setMsg(null);
+    try {
+      await apiFetch('/api/employee/communication/verify/confirm', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ channel, code }),
+      });
+      setMsg('Canal vérifié.');
+      setCode('');
+      load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Erreur');
+    }
+  };
+
+  if (!token) {
+    return (
+      <div>
+        <h1 className="mb-4 text-2xl font-semibold">Paramètres</h1>
+        <p className="text-on-surface-variant">Connectez-vous pour gérer vos moyens de contact.</p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-semibold">Paramètres</h1>
-      <p className="text-on-surface-variant">À venir — préférences et appareil.</p>
+    <div className="mx-auto max-w-lg space-y-8">
+      <h1 className="text-2xl font-semibold">Paramètres</h1>
+
+      <form onSubmit={(e) => void savePrefs(e)} className="space-y-3 rounded-xl border border-outline/10 bg-surface-container-lowest p-4">
+        <h2 className="text-lg font-medium">Contact</h2>
+        <label className="block text-sm text-on-surface-variant">E-mail</label>
+        <input
+          className="w-full rounded border border-outline/20 px-3 py-2"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        {phone && (
+          <p className="text-sm text-on-surface-variant">
+            Téléphone (géré par l&apos;employeur): <span className="font-mono">{phone}</span>
+          </p>
+        )}
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} />
+          Notifications par e-mail
+          {emailVerified ? <span className="text-primary">(vérifié)</span> : <span className="text-secondary">(non vérifié)</span>}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={notifyWa} onChange={(e) => setNotifyWa(e.target.checked)} />
+          Notifications WhatsApp
+          {waVerified ? <span className="text-primary">(vérifié)</span> : <span className="text-secondary">(non vérifié)</span>}
+        </label>
+        <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-on-primary">
+          Enregistrer
+        </button>
+      </form>
+
+      <div className="space-y-3 rounded-xl border border-outline/10 bg-surface-container-lowest p-4">
+        <h2 className="text-lg font-medium">Vérifier un canal</h2>
+        <p className="text-sm text-on-surface-variant">Nécessite Redis et SMTP (e-mail) ou le pont WhatsApp.</p>
+        <select
+          className="w-full rounded border border-outline/20 px-3 py-2"
+          value={channel}
+          onChange={(e) => setChannel(e.target.value as 'email' | 'whatsapp')}
+        >
+          <option value="email">E-mail</option>
+          <option value="whatsapp">WhatsApp</option>
+        </select>
+        <button type="button" className="rounded-lg border border-primary px-4 py-2 text-primary" onClick={() => void requestCode()}>
+          Envoyer le code
+        </button>
+        <form onSubmit={(e) => void confirmCode(e)} className="flex flex-col gap-2 sm:flex-row">
+          <input
+            className="min-w-0 flex-1 rounded border border-outline/20 px-3 py-2"
+            placeholder="Code reçu"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <button type="submit" className="rounded-lg bg-secondary-container px-4 py-2 text-on-secondary-container">
+            Confirmer
+          </button>
+        </form>
+      </div>
+
+      {err && <p className="text-sm text-error">{err}</p>}
+      {msg && <p className="text-sm text-primary">{msg}</p>}
     </div>
   );
 }

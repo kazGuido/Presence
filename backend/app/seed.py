@@ -1,6 +1,7 @@
 """Optional demo seed (set DEMO_SEED=1)."""
 
-from datetime import date, time
+from datetime import date, datetime, time, timezone
+
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
@@ -40,20 +41,24 @@ def seed_demo(db: Session) -> None:
     sched = WorkSchedule(company_id=co.id, name="Bureau 8-17")
     db.add(sched)
     db.flush()
-    db.add(
-        WorkScheduleRule(
-            work_schedule_id=sched.id,
-            weekday=0,
-            start_time=time(8, 0),
-            end_time=time(17, 0),
+    for wd in range(7):
+        db.add(
+            WorkScheduleRule(
+                work_schedule_id=sched.id,
+                weekday=wd,
+                start_time=time(8, 0),
+                end_time=time(17, 0),
+            )
         )
-    )
     emp = Employee(
         company_id=co.id,
         display_name="Employé Demo",
-        phone_e164=None,
+        email="employee@demo.example",
+        phone_e164="+2250700000000",
         pin_hash=hash_password("1234"),
         default_work_site_id=site.id,
+        email_verified_at=datetime.now(timezone.utc),
+        whatsapp_verified_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     db.flush()

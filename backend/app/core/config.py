@@ -19,6 +19,29 @@ class Settings(BaseSettings):
     upload_dir: str = str(_BACKEND_ROOT / "uploads")
     max_upload_mb: int = 5
 
+    # Redis (verification codes, ARQ broker)
+    redis_url: str = ""
+
+    # SMTP (email notifications — not WhatsApp Cloud API)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "Attendance"
+    smtp_use_tls: bool = True
+
+    # MinIO (S3-compatible object storage via FastAPI)
+    minio_endpoint: str = ""
+    minio_access_key: str = ""
+    minio_secret_key: str = ""
+    minio_bucket: str = "attendance"
+    minio_secure: bool = False
+    minio_public_read: bool = False  # if true, store public URL; else presigned GET
+
+    # Worker
+    reminder_lead_minutes: int = 30  # send "confirm attendance" this many minutes before schedule start
+
 
 @lru_cache
 def get_settings() -> Settings:

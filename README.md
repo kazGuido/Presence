@@ -2,7 +2,7 @@
 
 Employer portal (company, employees, work sites, schedules), employee punch in/out with geofence + optional photo, attendance analytics, and WhatsApp validation deep links via a **Baileys** HTTP bridge.
 
-**Stack**: FastAPI + SQLite (backend), Vite + React + TypeScript + Tailwind v4 (frontend), Node bridge for WhatsApp.
+**Stack**: FastAPI + SQLite (backend), Vite + React + TypeScript + Tailwind (frontend), Redis + ARQ worker (scheduled reminders), MinIO (optional punch photos), SMTP (optional email), Node bridge for WhatsApp (Baileys).
 
 ## Clone
 
@@ -48,14 +48,28 @@ cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## Docker Compose
 
+The root **`Dockerfile`** is multi-stage: it runs `npm run build` in the frontend image, copies the Vite output into **`backend/app/static`**, then builds the Python image. The **`api`** container runs **uvicorn** only; it serves **`/api/*`**, mounts **`/uploads`** for local files, and serves the **SPA** (static assets + `index.html` fallback) on the same origin — so **one URL** (e.g. `http://localhost:8000`) is the full app after compose is up.
+
 ```bash
 docker compose up --build
 ```
 
-- API + static UI: port **8000**
-- WhatsApp bridge: **3005** (scan QR in `docker compose logs whatsapp-bridge`)
+Services:
 
-Set `WHATSAPP_BRIDGE_URL`, `WHATSAPP_BRIDGE_SECRET`, and `PUBLIC_APP_URL` in `.env` for the API service.
+- **api** — FastAPI + built UI (port **8000**)
+- **worker** — ARQ cron (every 5 minutes) for pre-shift attendance links; uses the same SQLite DB and Redis as the API
+- **redis** — verification codes for employee email/WhatsApp confirmation + ARQ broker
+- **minio** — object storage for punch photos when configured (API also ensures the bucket exists)
+- **whatsapp-bridge** — Baileys HTTP sender (port **3005**; scan QR in `docker compose logs whatsapp-bridge`)
+
+Use a project `.env` (Compose reads it from the repo root) for secrets and URLs, for example:
+
+- `JWT_SECRET`, `WHATSAPP_BRIDGE_SECRET`
+- `PUBLIC_APP_URL` — must be the browser-reachable base URL used in `/attend/...` links (e.g. `http://localhost:8000` when using compose)
+- `SMTP_*` — optional; required to send attendance links or verification codes by email
+- `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` — match the MinIO service defaults or your overrides
+
+The API container sets `DATABASE_URL=sqlite:////app/data/app.db` and `UPLOAD_DIR=/app/uploads` so the DB and uploads persist on named volumes.
 
 ## Design reference
 

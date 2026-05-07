@@ -9,7 +9,18 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
-from app.routers import analytics, attendance_sessions, auth, employees, punches, work_schedules, work_sites
+from app.core.sqlite_migrate import apply_sqlite_migrations
+from app.routers import (
+    analytics,
+    attendance_sessions,
+    auth,
+    employee_communication,
+    employees,
+    punches,
+    work_schedules,
+    work_sites,
+)
+from app.services.object_storage import ensure_minio_bucket
 
 
 @asynccontextmanager
@@ -17,6 +28,11 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     Path(settings.database_url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
+    apply_sqlite_migrations(engine)
+    try:
+        ensure_minio_bucket()
+    except Exception:
+        pass
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     if os.getenv("DEMO_SEED", "").lower() in ("1", "true", "yes"):
         from app.seed import seed_demo
@@ -47,6 +63,7 @@ app.include_router(employees.router, prefix="/api")
 app.include_router(punches.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(attendance_sessions.router, prefix="/api")
+app.include_router(employee_communication.router, prefix="/api")
 
 _settings = get_settings()
 Path(_settings.upload_dir).mkdir(parents=True, exist_ok=True)

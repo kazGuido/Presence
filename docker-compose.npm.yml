@@ -1,0 +1,36 @@
+# Overlay so Nginx Proxy Manager can reach the API container on the same Docker host.
+#
+# Requires the NPM stack’s app network (default name below). List yours:
+#   docker inspect nginx-proxy-manager --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+#
+# Start:
+#   docker compose -f docker-compose.yml -f docker-compose.npm.yml up -d
+#
+# NPM Proxy Host (Details tab):
+#   Forward hostname: api   (or presence-api — same container)
+#   Forward port: 8000
+#   Scheme: http
+#
+# Optional second network (create if missing: docker network create proxy):
+#   NPM_PROXY_NETWORK=proxy
+#
+# If your NPM network name differs:
+#   NPM_APP_NETWORK=my-nginx-proxy-manager_npm-network
+
+networks:
+  proxy:
+    external: true
+    name: ${NPM_PROXY_NETWORK:-proxy}
+  npm_app_network:
+    external: true
+    name: ${NPM_APP_NETWORK:-nginx-proxy-manager_npm-network}
+
+services:
+  api:
+    networks:
+      default: {}
+      proxy: {}
+      npm_app_network:
+        aliases:
+          - api
+          - presence-api

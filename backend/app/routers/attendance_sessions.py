@@ -1,7 +1,5 @@
-import hashlib
-import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from datetime import datetime, timezone
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -19,16 +17,14 @@ from app.models import (
     PunchSource,
     WorkSite,
 )
-from app.schemas import AttendanceSessionCreate, AttendanceSessionPublicOut, SendWaIn
+from app.schemas import AttendanceSessionCreate, AttendanceSessionPublicOut, SendNotificationIn, SendWaIn
+from app.services.attendance_notify import send_attendance_link
+from app.services.attendance_sessions_core import create_attendance_session, hash_token
 from app.services.geofence import within_radius
 from app.services.uploads import save_optional_image
 from app.services.whatsapp_bridge import send_whatsapp_text
 
 router = APIRouter(prefix="/attendance-sessions", tags=["attendance-sessions"])
-
-
-def _hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -43,21 +39,76 @@ def create_session(
     site = db.get(WorkSite, body.work_site_id)
     if not site or site.company_id != company.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid work site")
-    raw = secrets.token_urlsafe(32)
-    th = _hash_token(raw)
-    exp = datetime.now(timezone.utc) + timedelta(hours=body.expires_hours)
-    row = AttendanceSession(
+    row, raw = create_attendance_session(
+        db,
         company_id=company.id,
         employee_id=emp.id,
         work_site_id=site.id,
-        token_hash=th,
-        expires_at=exp,
-        status=AttendanceSessionStatus.pending,
+        expires_hours=body.expires_hours,
     )
-    db.add(row)
     db.commit()
     db.refresh(row)
     return {"id": row.id, "token": raw, "expires_at": row.expires_at.isoformat()}
+
+
+def _send_notification_impl(
+    session_id: str,
+    token: str,
+    channel: Literal["auto", "email", "whatsapp"],
+    company: Company,
+    db: Session,
+) -> dict:
+    row = db.get(AttendanceSession, session_id)
+    if not row or row.company_id != company.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
+    if hash_token(token) != row.token_hash:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid token for this session")
+    emp = db.get(Employee, row.employee_id)
+    site = db.get(WorkSite, row.work_site_id)
+    if not emp:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Employee missing")
+    site_name = site.name if site else "votre site"
+    try:
+        if channel == "auto":
+            channels = send_attendance_link(
+                emp,
+                site_name,
+                token,
+                "auto",
+                require_verified=True,
+                allow_multiple=False,
+            )
+        elif channel == "email":
+            channels = send_attendance_link(
+                emp,
+                site_name,
+                token,
+                "email",
+                require_verified=False,
+                allow_multiple=False,
+            )
+        else:
+            channels = send_attendance_link(
+                emp,
+                site_name,
+                token,
+                "whatsapp",
+                require_verified=False,
+                allow_multiple=False,
+            )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    return {"ok": True, "channels": channels}
+
+
+@router.post("/{session_id}/send-notification-with-token")
+def send_notification_with_token(
+    session_id: str,
+    body: SendNotificationIn,
+    company: Annotated[Company, Depends(get_current_company)],
+    db: Session = Depends(get_db),
+) -> dict:
+    return _send_notification_impl(session_id, body.token, body.channel, company, db)
 
 
 @router.post("/{session_id}/send-whatsapp-with-token")
@@ -67,28 +118,12 @@ def send_whatsapp_with_token(
     company: Annotated[Company, Depends(get_current_company)],
     db: Session = Depends(get_db),
 ) -> dict:
-    row = db.get(AttendanceSession, session_id)
-    if not row or row.company_id != company.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
-    if _hash_token(body.token) != row.token_hash:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid token for this session")
-    emp = db.get(Employee, row.employee_id)
-    site = db.get(WorkSite, row.work_site_id)
-    if not emp or not emp.phone_e164:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Employee has no phone_e164")
-    settings = get_settings()
-    base = settings.public_app_url.rstrip("/")
-    link = f"{base}/attend/{body.token}"
-    msg = (
-        f"Bonjour {emp.display_name}, validez votre présence sur {site.name if site else 'votre site'}: {link}"
-    )
-    send_whatsapp_text(emp.phone_e164, msg)
-    return {"ok": True}
+    return _send_notification_impl(session_id, body.token, "whatsapp", company, db)
 
 
 @router.get("/by-token/{token}", response_model=AttendanceSessionPublicOut)
 def public_session_info(token: str, db: Session = Depends(get_db)) -> AttendanceSessionPublicOut:
-    th = _hash_token(token)
+    th = hash_token(token)
     row = db.query(AttendanceSession).filter(AttendanceSession.token_hash == th).first()
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired link")
@@ -115,7 +150,7 @@ async def complete_session(
     file: UploadFile | None = File(None),
 ) -> dict:
     settings = get_settings()
-    th = _hash_token(token)
+    th = hash_token(token)
     row = db.query(AttendanceSession).filter(AttendanceSession.token_hash == th).first()
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired link")

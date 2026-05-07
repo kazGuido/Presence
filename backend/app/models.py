@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.sqlite import CHAR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -108,8 +109,13 @@ class Employee(Base):
     id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=_uuid)
     company_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("companies.id"), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     phone_e164: Mapped[str | None] = mapped_column(String(32), nullable=True)
     pin_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_whatsapp: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    whatsapp_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     default_work_site_id: Mapped[str | None] = mapped_column(CHAR(36), ForeignKey("work_sites.id"), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -144,6 +150,27 @@ class Punch(Base):
     within_geofence: Mapped[bool] = mapped_column(Boolean, default=True)
     photo_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     source: Mapped[PunchSource] = mapped_column(Enum(PunchSource), default=PunchSource.app)
+
+
+class ScheduledReminderSent(Base):
+    """Dedupe scheduled pre-shift attendance link sends (worker)."""
+
+    __tablename__ = "scheduled_reminder_sent"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "local_date", "kind", name="uq_reminder_emp_date_kind"),
+    )
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=_uuid)
+    employee_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("employees.id"), nullable=False, index=True)
+    company_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("companies.id"), nullable=False)
+    local_date: Mapped[date] = mapped_column(Date, nullable=False)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)  # e.g. pre_shift_attendance
+    attendance_session_id: Mapped[str | None] = mapped_column(
+        CHAR(36), ForeignKey("attendance_sessions.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class AttendanceSession(Base):

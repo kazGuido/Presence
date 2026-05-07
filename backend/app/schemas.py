@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class RegisterIn(BaseModel):
@@ -68,20 +68,45 @@ class WorkScheduleOut(BaseModel):
 
 class EmployeeCreate(BaseModel):
     display_name: str
+    email: EmailStr | None = None
     phone_e164: str | None = None
     pin: str = Field(min_length=4, max_length=12)
     default_work_site_id: str | None = None
+    notify_email: bool = True
+    notify_whatsapp: bool = True
 
 
 class EmployeeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     display_name: str
+    email: str | None
     phone_e164: str | None
+    notify_email: bool
+    notify_whatsapp: bool
+    email_verified: bool
+    whatsapp_verified: bool
     default_work_site_id: str | None
     active: bool
 
-    class Config:
-        from_attributes = True
+    @model_validator(mode="before")
+    @classmethod
+    def from_employee(cls, v: Any) -> Any:
+        if hasattr(v, "email_verified_at") and hasattr(v, "id"):
+            return {
+                "id": v.id,
+                "display_name": v.display_name,
+                "email": v.email,
+                "phone_e164": v.phone_e164,
+                "notify_email": v.notify_email,
+                "notify_whatsapp": v.notify_whatsapp,
+                "email_verified": v.email_verified_at is not None,
+                "whatsapp_verified": v.whatsapp_verified_at is not None,
+                "default_work_site_id": v.default_work_site_id,
+                "active": v.active,
+            }
+        return v
 
 
 class AssignScheduleIn(BaseModel):
@@ -129,6 +154,11 @@ class AttendanceSessionPublicOut(BaseModel):
     expires_at: datetime
     status: str
     already_completed: bool
+
+
+class SendNotificationIn(BaseModel):
+    token: str = Field(min_length=10)
+    channel: Literal["auto", "email", "whatsapp"] = "auto"
 
 
 class SendWaIn(BaseModel):

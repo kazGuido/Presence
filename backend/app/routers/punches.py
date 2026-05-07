@@ -2,14 +2,18 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse, RedirectResponse
+from pathlib import Path
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.deps import get_current_employee, get_employee_company
 from app.models import Company, Employee, Punch, PunchKind, PunchSource, WorkSite
 from app.schemas import PunchCreate, PunchOut, PunchStateOut
 from app.services.geofence import within_radius
+from app.services.object_storage import parse_minio_ref, presigned_get_url
 from app.services.punch_logic import next_required_kind, punches_for_local_day, today_local_date
 from app.services.uploads import save_optional_image
 
@@ -147,3 +151,28 @@ def create_my_punch_json(
     db.commit()
     db.refresh(punch)
     return punch
+
+
+@router.get("/me/photos/{punch_id}", response_model=None)
+def get_my_punch_photo(
+    punch_id: str,
+    employee: Annotated[Employee, Depends(get_current_employee)],
+    company: Annotated[Company, Depends(get_employee_company)],
+    db: Session = Depends(get_db),
+) -> FileResponse | RedirectResponse:
+    punch = db.get(Punch, punch_id)
+    if not punch or punch.employee_id != employee.id or punch.company_id != company.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Punch not found")
+    if not punch.photo_path:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No photo")
+    parsed = parse_minio_ref(punch.photo_path)
+    if parsed:
+        bucket, key = parsed
+        if bucket != get_settings().minio_bucket:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid storage reference")
+        url = presigned_get_url(key, expires_seconds=3600)
+        return RedirectResponse(url)
+    path = Path(punch.photo_path)
+    if not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo missing")
+    return FileResponse(path)
