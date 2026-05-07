@@ -60,3 +60,18 @@ Set `WHATSAPP_BRIDGE_URL`, `WHATSAPP_BRIDGE_SECRET`, and `PUBLIC_APP_URL` in `.e
 ## Design reference
 
 UI tokens align with [`/root/stitch_geofenced_whatsapp_attendance_sync/ivorian_tech_excellence/DESIGN.md`](/root/stitch_geofenced_whatsapp_attendance_sync/ivorian_tech_excellence/DESIGN.md).
+
+## Créer le dépôt GitHub et pousser
+
+```bash
+cd geofence-attendance-app
+gh auth login
+gh repo create geofence-attendance-app --private --description "Geofenced attendance: employers, punch in/out, WhatsApp Baileys, FastAPI + React" --source=. --remote=origin --push
+```
+
+Sans `gh` : créez un dépôt vide `geofence-attendance-app` sur GitHub, puis :
+
+```bash
+git remote add origin https://github.com/VOTRE_COMPTE/geofence-attendance-app.git
+git push -u origin main
+```
