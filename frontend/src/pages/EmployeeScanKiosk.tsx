@@ -88,7 +88,7 @@ export function EmployeeScanKiosk() {
         <p className="text-on-surface-variant">{t('employee.scanNeedMagic')}</p>
         <Link
           to={`/employee/login?next=${nextAfterLogin}`}
-          className="inline-flex rounded-xl bg-primary px-6 py-3 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95"
+          className="pressable inline-flex rounded-xl bg-primary px-6 py-3 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95"
         >
           {t('employee.scanSignInCta')}
         </Link>
@@ -115,7 +115,7 @@ export function EmployeeScanKiosk() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-primary py-3 font-semibold text-on-primary disabled:opacity-50"
+          className="pressable w-full rounded-xl bg-primary py-3 font-semibold text-on-primary disabled:pointer-events-none disabled:opacity-50"
         >
           {busy ? '…' : t('employee.scanConfirm')}
         </button>

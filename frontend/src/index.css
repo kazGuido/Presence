@@ -19,6 +19,15 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+@layer components {
+  .pressable {
+    @apply touch-manipulation transition-transform duration-150 will-change-transform active:scale-[0.97] motion-reduce:active:scale-100;
+  }
+  .pressable-sm {
+    @apply touch-manipulation transition-transform duration-100 active:scale-[0.98] motion-reduce:active:scale-100;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

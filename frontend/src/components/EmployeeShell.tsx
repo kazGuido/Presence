@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getEmployeeToken } from '../api/client';
+import { ClockInNudgeListener } from './ClockInNudgeListener';
 import { LanguageToggle } from './LanguageToggle';
 import { MobileHexTabBar, type HexTabItem } from './MobileHexTabBar';
 import { useEmployeePushRegistration } from '../hooks/useEmployeePushRegistration';
@@ -55,6 +56,7 @@ export function EmployeeShell() {
 
   return (
     <div className="flex min-h-screen flex-col bg-surface pb-28 text-on-surface md:pb-0">
+      <ClockInNudgeListener />
       <header className="sticky top-0 z-40 border-b border-primary/10 bg-surface">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-2 md:px-6">
           <Link to="/employee" className="flex min-w-0 items-center gap-2 text-primary">

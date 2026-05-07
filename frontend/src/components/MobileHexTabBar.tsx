@@ -70,7 +70,7 @@ export function MobileHexTabBar({ items, variant = 'default' }: { items: HexTabI
                 <>
                   <div
                     className={[
-                      'hex-clip flex flex-col items-center justify-center motion-safe:transition-all motion-safe:duration-200',
+                      'hex-clip flex flex-col items-center justify-center motion-safe:transition-all motion-safe:duration-200 pressable-sm',
                       box,
                       isActive
                         ? 'bg-primary text-on-primary shadow-primary/25 ring-1 ring-primary/40'

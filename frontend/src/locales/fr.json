@@ -103,7 +103,12 @@
     "pointerAppPunchDisabled": "Aucun mode de pointage n’est disponible. Contactez votre employeur.",
     "pointerGpsRequired": "Le GPS est requis et n’a pas pu être obtenu. L’attestation photo a été désactivée par l’employeur.",
     "pointerPhotoOnlyHint": "Votre employeur exige une photo pour ce mode. Ajoutez une photo pour confirmer.",
-    "controllerBorneCompanyOff": "L’employeur a désactivé la borne (affichage du QR) pour toute l’entreprise."
+    "controllerBorneCompanyOff": "L’employeur a désactivé la borne (affichage du QR) pour toute l’entreprise.",
+    "pointerScheduledStart": "Début prévu (aujourd’hui)",
+    "nudgeClockInTitle": "C’est l’heure de pointer",
+    "nudgeClockInBody": "Votre créneau commence à {{time}}. Enregistrez votre arrivée depuis Pointer.",
+    "nudgeClockInBodyNoTime": "Vous n’avez pas encore pointé l’entrée. Ouvrez Pointer à votre arrivée sur site.",
+    "nudgeClockInAction": "Ouvrir Pointer"
   },
   "employer": {
     "spaceLabel": "Espace employeur",

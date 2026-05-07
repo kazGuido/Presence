@@ -191,6 +191,14 @@ class PunchOut(BaseModel):
 class PunchStateOut(BaseModel):
     next_kind: str
     local_date: date
+    expected_start_local: str | None = Field(
+        default=None,
+        description="Scheduled shift start (HH:MM) for today if a rule exists",
+    )
+    show_clock_in_reminder: bool = Field(
+        default=False,
+        description="True in the in-app window when clock-in is still due",
+    )
 
 
 class AttendanceSessionCreate(BaseModel):

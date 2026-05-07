@@ -177,7 +177,7 @@ export function EmployerSettings() {
             <button
               type="submit"
               disabled={attBusy}
-              className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+              className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary pressable disabled:pointer-events-none disabled:opacity-50"
             >
               {t('employer.settingsAttendanceSave')}
             </button>
@@ -205,7 +205,7 @@ export function EmployerSettings() {
             type="button"
             disabled={busy}
             onClick={() => void showQr()}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+            className="pressable rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:pointer-events-none disabled:opacity-50"
           >
             {t('employer.settingsWaShowQr')}
           </button>
@@ -213,7 +213,7 @@ export function EmployerSettings() {
             type="button"
             disabled={busy}
             onClick={() => void logoutBridge()}
-            className="rounded-full border border-outline/30 px-4 py-2 text-sm"
+            className="pressable rounded-full border border-outline/30 px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-50"
           >
             {t('employer.settingsWaRelink')}
           </button>

@@ -45,7 +45,12 @@ export function EmployeeLoading() {
 
 export function EmployeePointer() {
   const { t } = useTranslation();
-  const [state, setState] = useState<{ next_kind: string; local_date: string } | null>(null);
+  const [state, setState] = useState<{
+    next_kind: string;
+    local_date: string;
+    expected_start_local?: string | null;
+    show_clock_in_reminder?: boolean;
+  } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [photoMode, setPhotoMode] = useState(false);
@@ -209,6 +214,12 @@ export function EmployeePointer() {
             <p className="mt-2 text-sm text-on-surface-variant">
               {t('employee.pointerDate')}: {state?.local_date ?? '…'}
             </p>
+            {state?.expected_start_local && (
+              <p className="mt-2 text-sm text-on-surface-variant">
+                {t('employee.pointerScheduledStart')}:{' '}
+                <strong className="text-on-surface">{state.expected_start_local}</strong>
+              </p>
+            )}
             {err && !showAppPunch && <p className="mt-3 text-sm text-error">{err}</p>}
           </div>
 
@@ -223,7 +234,7 @@ export function EmployeePointer() {
               )}
               <Link
                 to="/employee/scan-kiosk"
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary bg-surface-container-lowest py-3 text-center font-semibold text-primary motion-safe:transition-opacity hover:opacity-90"
+                className="pressable flex w-full items-center justify-center gap-2 rounded-lg border border-primary bg-surface-container-lowest py-3 text-center font-semibold text-primary motion-safe:transition-opacity hover:opacity-90"
               >
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                   qr_code_scanner
@@ -256,7 +267,7 @@ export function EmployeePointer() {
                 type="button"
                 disabled={busy}
                 onClick={() => void punch()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-4 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95 disabled:opacity-50"
+                className="pressable flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-4 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95 disabled:pointer-events-none disabled:opacity-50"
               >
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                   alarm_on
@@ -476,7 +487,7 @@ export function EmployeeParametres() {
           <input type="checkbox" checked={notifyPush} onChange={(e) => setNotifyPush(e.target.checked)} />
           {t('employee.settingsNotifyPush')}
         </label>
-        <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-on-primary">
+        <button type="submit" className="pressable rounded-lg bg-primary px-4 py-2 text-on-primary">
           {t('employee.settingsSave')}
         </button>
       </form>
@@ -502,7 +513,7 @@ export function EmployeeParametres() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <button type="submit" className="rounded-lg bg-secondary-container px-4 py-2 text-on-secondary-container">
+          <button type="submit" className="pressable rounded-lg bg-secondary-container px-4 py-2 text-on-secondary-container">
             Confirmer
           </button>
         </form>

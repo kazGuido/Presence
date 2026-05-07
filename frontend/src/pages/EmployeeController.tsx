@@ -96,7 +96,7 @@ export function EmployeeController() {
           <button
             type="button"
             onClick={() => void refresh()}
-            className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-on-primary"
+            className="pressable rounded-full bg-primary px-5 py-2 text-sm font-semibold text-on-primary"
           >
             {t('employee.controllerRefresh')}
           </button>

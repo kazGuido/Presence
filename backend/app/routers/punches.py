@@ -15,6 +15,7 @@ from app.schemas import PunchCreate, PunchOut, PunchStateOut
 from app.services.geofence import within_radius
 from app.services.object_storage import parse_minio_ref, presigned_get_url
 from app.services.punch_logic import next_required_kind, punches_for_local_day, today_local_date
+from app.services.schedule_nudge import clock_in_reminder_fields
 from app.services.uploads import save_optional_image
 
 router = APIRouter(prefix="/punches", tags=["punches"])
@@ -30,7 +31,13 @@ def punch_state(
     day = today_local_date(tz)
     punches = punches_for_local_day(db, employee.id, day, tz)
     nk = next_required_kind(punches)
-    return PunchStateOut(next_kind=nk.value, local_date=day)
+    exp_str, show_rem = clock_in_reminder_fields(db, employee.id, tz, day, nk)
+    return PunchStateOut(
+        next_kind=nk.value,
+        local_date=day,
+        expected_start_local=exp_str,
+        show_clock_in_reminder=show_rem,
+    )
 
 
 @router.get("/me", response_model=list[PunchOut])

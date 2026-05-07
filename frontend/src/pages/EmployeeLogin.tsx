@@ -86,7 +86,7 @@ export function EmployeeLogin() {
               setErr(null);
               setInfo(null);
             }}
-            className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+            className={`pressable flex-1 rounded-lg py-2 text-sm font-medium ${
               tab === k ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
@@ -119,7 +119,7 @@ export function EmployeeLogin() {
             onChange={(e) => setPin(e.target.value)}
           />
           {err && <p className="text-sm text-error">{err}</p>}
-          <button type="submit" className="w-full rounded-lg bg-primary py-3 text-on-primary">
+          <button type="submit" className="pressable w-full rounded-lg bg-primary py-3 text-on-primary">
             {t('employee.loginSubmit')}
           </button>
         </form>
@@ -128,7 +128,7 @@ export function EmployeeLogin() {
       {tab === 'otp' && (
         <form onSubmit={(e) => void onOtpVerify(e)} className="space-y-4">
           <p className="text-sm text-on-surface-variant">{t('employee.loginOtpHint')}</p>
-          <button type="button" onClick={() => void onOtpRequest()} className="w-full rounded-lg border border-primary py-2 text-sm font-medium text-primary">
+          <button type="button" onClick={() => void onOtpRequest()} className="pressable w-full rounded-lg border border-primary py-2 text-sm font-medium text-primary">
             {t('employee.loginOtpRequest')}
           </button>
           <input
@@ -139,7 +139,7 @@ export function EmployeeLogin() {
           />
           {err && <p className="text-sm text-error">{err}</p>}
           {info && <p className="text-sm text-primary">{t('employee.loginMagicSent')}</p>}
-          <button type="submit" className="w-full rounded-lg bg-primary py-3 text-on-primary">
+          <button type="submit" className="pressable w-full rounded-lg bg-primary py-3 text-on-primary">
             {t('employee.loginOtpVerify')}
           </button>
         </form>

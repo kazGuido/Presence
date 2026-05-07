@@ -103,7 +103,12 @@
     "pointerAppPunchDisabled": "No pointage method is available for this account. Contact your employer.",
     "pointerGpsRequired": "GPS is required and could not be obtained. Your employer has disabled photo-only attestation.",
     "pointerPhotoOnlyHint": "Your employer has set photo attestation for this device. Add a photo to confirm.",
-    "controllerBorneCompanyOff": "The employer has turned off the on-site kiosk (host QR) for the whole company."
+    "controllerBorneCompanyOff": "The employer has turned off the on-site kiosk (host QR) for the whole company.",
+    "pointerScheduledStart": "Scheduled start (today)",
+    "nudgeClockInTitle": "Time to clock in",
+    "nudgeClockInBody": "Your shift is scheduled for {{time}}. Record your arrival on the Clock screen.",
+    "nudgeClockInBodyNoTime": "You have not clocked in yet. Open Clock when you arrive on site.",
+    "nudgeClockInAction": "Open Clock"
   },
   "employer": {
     "spaceLabel": "Employer space",

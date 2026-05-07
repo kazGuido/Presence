@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { CapacitorNotificationBridge } from './components/CapacitorNotificationBridge';
 import { EmployeeShell } from './components/EmployeeShell';
 import { AttendByToken } from './pages/AttendByToken';
@@ -29,6 +30,22 @@ import { EmployerWelcome } from './pages/EmployerWelcome';
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster
+        position="top-center"
+        richColors
+        closeButton
+        expand={false}
+        toastOptions={{
+          duration: 10_000,
+          classNames: {
+            toast: 'font-sans border border-primary/15 shadow-lg',
+            title: 'font-semibold text-on-surface',
+            description: 'text-on-surface-variant',
+            actionButton: '!bg-primary !text-on-primary',
+            cancelButton: 'border border-outline/30',
+          },
+        }}
+      />
       <CapacitorNotificationBridge />
       <Routes>
         <Route path="/" element={<Navigate to="/employer/login" replace />} />
