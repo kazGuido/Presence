@@ -1,0 +1,29 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      WHATSAPP_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:3005}
+      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8000}
+      DEMO_SEED: ${DEMO_SEED:-1}
+    volumes:
+      - api_data:/app/data
+      - api_uploads:/app/uploads
+
+  whatsapp-bridge:
+    build: ./whatsapp-bridge
+    ports:
+      - "127.0.0.1:${WA_BRIDGE_PORT:-3005}:3005"
+    environment:
+      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
+      LOG_LEVEL: info
+    volumes:
+      - wa_auth:/data/auth_info
+
+volumes:
+  api_data:
+  api_uploads:
+  wa_auth:
