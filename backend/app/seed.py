@@ -165,32 +165,75 @@ def _seed_demo_punches_if_empty(
     def utc_at(local_day: date, local_t: time) -> datetime:
         return datetime.combine(local_day, local_t, tzinfo=tz).astimezone(timezone.utc)
 
+    # Count Mon–Fri days in the window so "perfect" rows always land on real workdays.
+    weekday_index = 0
+
     # Past 21 weekdays + occasional noise
     for day_offset in range(1, 28):
         local_day = today - timedelta(days=day_offset)
         if local_day.weekday() >= 5:
             continue
+        weekday_index += 1
 
         for ei, emp in enumerate(employees):
             site = db.get(WorkSite, emp.default_work_site_id) or site_main
             base_lat, base_lng = site.lat, site.lng
+
+            # Skip punch pair for one employee one weekday (missing day pattern)
+            if weekday_index == 11 and ei == 1:
+                continue
+
+            # One clean day per demo employee: 4th / 7th / 10th / 13th weekday in window (always exists in ~3 weeks of weekdays).
+            perfect_slot = (weekday_index, ei) in {(4, 0), (7, 1), (10, 2), (13, 3)}
+            if perfect_slot:
+                # 8:03 in / 17:07 out — inside schedule + grace; tight GPS near site center
+                pin_n, pin_e = 15.0, -12.0
+                lat_in, lng_in = _offset_m(base_lat, base_lng, pin_n, pin_e)
+                lat_out, lng_out = _offset_m(base_lat, base_lng, 10.0, 8.0)
+                db.add(
+                    Punch(
+                        company_id=co.id,
+                        employee_id=emp.id,
+                        kind=PunchKind.punch_in,
+                        at=utc_at(local_day, time(8, 3)),
+                        lat=lat_in,
+                        lng=lng_in,
+                        work_site_id=site.id,
+                        distance_m=22.0,
+                        within_geofence=True,
+                        photo_only_attestation=False,
+                        source=PunchSource.app,
+                    )
+                )
+                db.add(
+                    Punch(
+                        company_id=co.id,
+                        employee_id=emp.id,
+                        kind=PunchKind.punch_out,
+                        at=utc_at(local_day, time(17, 7)),
+                        lat=lat_out,
+                        lng=lng_out,
+                        work_site_id=site.id,
+                        distance_m=18.0,
+                        within_geofence=True,
+                        photo_only_attestation=False,
+                        source=PunchSource.app,
+                    )
+                )
+                continue
 
             # Stagger clock-in (minutes after 08:00)
             late_min = rng.randint(0, 35) if ei != 2 else rng.randint(40, 95)  # Aya often "late"
             in_h, in_m = divmod(8 * 60 + late_min, 60)
             in_time = time(int(in_h), int(in_m))
 
-            # Skip punch pair one day for one employee (missing day pattern)
-            if day_offset == 10 and ei == 1:
-                continue
-
             north = rng.uniform(-40, 40)
             east = rng.uniform(-40, 40)
             lat_in, lng_in = _offset_m(base_lat, base_lng, north, east)
             dist = rng.uniform(5.0, 120.0)
 
-            # One flagged out-of-zone punch for demo analytics
-            out_of_zone = day_offset == 7 and ei == 3
+            # One flagged out-of-zone punch for demo analytics (not on an employee's "perfect" day)
+            out_of_zone = weekday_index == 6 and ei == 3
             if out_of_zone:
                 lat_in, lng_in = _offset_m(base_lat, base_lng, 600, 200)
                 dist = 620.0
@@ -211,8 +254,8 @@ def _seed_demo_punches_if_empty(
                 )
             )
 
-            # Missing punch-out on one synthetic case
-            if day_offset == 14 and ei == 0:
+            # Missing punch-out on one synthetic case (different weekday than perfect day for emp 0)
+            if weekday_index == 17 and ei == 0:
                 db.flush()
                 continue
 
