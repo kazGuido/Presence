@@ -107,11 +107,11 @@ def build_attendance_analytics(
                 expected_start, expected_end = _expected_window_for_weekday(db, schedule_id, wd)
                 if expected_start and first_in:
                     exp_start_dt = _combine_local(tz, d, expected_start)
-                    if first_in.astimezone(tz) > exp_start_dt + timedelta(minutes=grace_minutes):
+                    if first_in.at.astimezone(tz) > exp_start_dt + timedelta(minutes=grace_minutes):
                         late_in = True
                 if expected_end and last_out:
                     exp_end_dt = _combine_local(tz, d, expected_end)
-                    if last_out.astimezone(tz) < exp_end_dt - timedelta(minutes=grace_minutes):
+                    if last_out.at.astimezone(tz) < exp_end_dt - timedelta(minutes=grace_minutes):
                         early_out = True
 
             flags: list[str] = []
