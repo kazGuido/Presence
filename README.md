@@ -56,6 +56,15 @@ The root **`Dockerfile`** is multi-stage: it runs `npm run build` in the fronten
 docker compose up --build
 ```
 
+For **production** behind **Nginx Proxy Manager**, use the canonical deploy so the `api` container joins NPM’s Docker networks (otherwise NPM cannot resolve `api` → **502**):
+
+```bash
+./deploy.sh
+# or: make deploy
+```
+
+See **Production behind Nginx Proxy Manager** below. [`compose.env.example`](compose.env.example) lists `NPM_PROXY_NETWORK` / `NPM_APP_NETWORK` — copy values into your root `.env`.
+
 Services:
 
 - **api** — FastAPI + built UI (port **8000**)
@@ -66,9 +75,38 @@ Services:
 
 **Migrating an old single `auth_info` folder:** copy its contents to `tenants/<company-id>/` inside the bridge data volume (`company-id` = `companies.id`, e.g. from `GET /api/employer/company` when logged in as that employer).
 
+### Production behind Nginx Proxy Manager (avoid 502)
+
+Deploy with **`./deploy.sh`** (or `make deploy`) so Compose loads **`docker-compose.npm.yml`** as well as [`docker-compose.yml`](docker-compose.yml). That attaches **`api`** to the external networks NPM uses; otherwise NPM cannot resolve hostname **`api`** and you get **502 Bad Gateway**.
+
+**First time on the server**
+
+1. List NPM’s networks: `docker inspect nginx-proxy-manager --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'`
+2. Create missing networks if needed, e.g. `docker network create proxy`.
+3. Copy [`compose.env.example`](compose.env.example) into root `.env` and set `NPM_PROXY_NETWORK` / `NPM_APP_NETWORK` to match `docker network ls`.
+
+**Nginx Proxy Manager — Proxy Host**
+
+| Field | Value |
+|--------|--------|
+| Scheme | `http` |
+| Forward hostname / IP | `api` or `presence-api` |
+| Forward port | `8000` |
+
+Do not use `127.0.0.1` or the host-published port unless NPM uses host networking; inside the NPM container those do not point at this stack.
+
+**Verify from NPM’s container**
+
+```bash
+docker exec nginx-proxy-manager curl -fsS http://api:8000/health
+```
+
+Expect `{"status":"ok"}`. A few seconds of 502 during `up --build` is normal while `api` restarts.
+
 Use a project `.env` (Compose reads it from the repo root) for secrets and URLs, for example:
 
 - `JWT_SECRET`, `WHATSAPP_BRIDGE_SECRET`
+- `NPM_PROXY_NETWORK`, `NPM_APP_NETWORK` — when using **Nginx Proxy Manager**, set these to match Docker network names (see [`compose.env.example`](compose.env.example)) and deploy with `./deploy.sh`
 - `PUBLIC_APP_URL` — must be the browser-reachable base URL used in `/attend/...` links (e.g. `http://localhost:8000` when using compose)
 - `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_FILE` — optional; required for **native push** to Android/iOS apps (Firebase HTTP v1). Point `FCM_SERVICE_ACCOUNT_FILE` at the service account JSON path inside the container (e.g. mount a read-only volume). Set these on both **`api`** and **`worker`** if you use Compose — reminders run in the worker.
 - `SMTP_*` — optional; required to send attendance links or verification codes by email
