@@ -112,6 +112,7 @@ def _send_notification_impl(
                 "auto",
                 require_verified=True,
                 allow_multiple=False,
+                db=db,
             )
         elif channel == "email":
             channels = send_attendance_link(
@@ -121,6 +122,7 @@ def _send_notification_impl(
                 "email",
                 require_verified=False,
                 allow_multiple=False,
+                db=db,
             )
         else:
             channels = send_attendance_link(
@@ -130,6 +132,7 @@ def _send_notification_impl(
                 "whatsapp",
                 require_verified=False,
                 allow_multiple=False,
+                db=db,
             )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e

@@ -935,6 +935,7 @@ export function EmployerEmployees() {
       </form>
 
       {magicMsg && <p className="text-sm text-primary">{magicMsg}</p>}
+      {err && <p className="text-sm text-error">{err}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
         {emps.map((em) => (

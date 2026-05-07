@@ -68,7 +68,7 @@
     "settingsPhoneManaged": "Phone (set by employer)",
     "settingsNotifyEmail": "Email notifications",
     "settingsNotifyWa": "WhatsApp notifications",
-    "settingsVerified": "(verified)",
+    "settingsNotifyPush": "App push notifications (install the mobile app and allow alerts)",
     "settingsNotVerified": "(not verified)",
     "settingsSave": "Save preferences",
     "settingsSaved": "Preferences saved.",

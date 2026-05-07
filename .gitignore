@@ -10,6 +10,14 @@ __pycache__/
 node_modules/
 frontend/dist/
 
+# Android (Capacitor) — do not commit signing secrets or Firebase config
+frontend/android/app/google-services.json
+frontend/android/keystore.properties
+frontend/android/**/*.jks
+frontend/android/**/*.keystore
+frontend/android/app/release/
+frontend/android/local.properties
+
 # Env & secrets
 .env
 .env.local

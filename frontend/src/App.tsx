@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { CapacitorNotificationBridge } from './components/CapacitorNotificationBridge';
 import { EmployeeShell } from './components/EmployeeShell';
 import { AttendByToken } from './pages/AttendByToken';
 import { EmployeeController } from './pages/EmployeeController';
@@ -28,6 +29,7 @@ import { EmployerWelcome } from './pages/EmployerWelcome';
 export default function App() {
   return (
     <BrowserRouter>
+      <CapacitorNotificationBridge />
       <Routes>
         <Route path="/" element={<Navigate to="/employer/login" replace />} />
         <Route path="/employer/login" element={<EmployerLogin />} />

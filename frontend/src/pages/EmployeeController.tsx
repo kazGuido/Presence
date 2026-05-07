@@ -7,7 +7,7 @@ export function EmployeeController() {
   const { t } = useTranslation();
   const token = getEmployeeToken();
   const [kioskToken, setKioskToken] = useState<string | null>(null);
-  const [ttl, setTtl] = useState(90);
+  const [, setTtl] = useState(90);
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [err, setErr] = useState<string | null>(null);
 

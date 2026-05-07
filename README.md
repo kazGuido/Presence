@@ -68,10 +68,35 @@ Use a project `.env` (Compose reads it from the repo root) for secrets and URLs,
 
 - `JWT_SECRET`, `WHATSAPP_BRIDGE_SECRET`
 - `PUBLIC_APP_URL` — must be the browser-reachable base URL used in `/attend/...` links (e.g. `http://localhost:8000` when using compose)
+- `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_FILE` — optional; required for **native push** to Android/iOS apps (Firebase HTTP v1). Point `FCM_SERVICE_ACCOUNT_FILE` at the service account JSON path inside the container (e.g. mount a read-only volume).
 - `SMTP_*` — optional; required to send attendance links or verification codes by email
 - `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` — match the MinIO service defaults or your overrides
 
 The API container sets `DATABASE_URL=sqlite:////app/data/app.db` and `UPLOAD_DIR=/app/uploads` so the DB and uploads persist on named volumes.
+
+## Mobile app (Capacitor / Android)
+
+The employee portal can be packaged as a native app:
+
+1. **Firebase**
+   - Create a Firebase project, add an **Android** app with package name `com.nicedaytech.presence` (matches [`frontend/capacitor.config.ts`](frontend/capacitor.config.ts)).
+   - Download **`google-services.json`** into `frontend/android/app/` (gitignored). Gradle applies the Google Services plugin only when this file exists.
+   - Create a **service account** with Firebase Cloud Messaging permissions and download the JSON key for the **API** (`FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` — see [`backend/.env.example`](backend/.env.example)).
+
+2. **API URL for the WebView**
+   - Production API origin must be set at **build time**: copy [`frontend/env.mobile.example`](frontend/env.mobile.example) to `.env.mobile` and set `VITE_API_URL=https://your-api-host` (no trailing slash).
+   - Build the bundle: `cd frontend && npm ci && npm run build:mobile`.
+
+3. **Sync & run**
+   - `npx cap sync android`
+   - Open `frontend/android` in Android Studio, or build from CLI with Android SDK / `ANDROID_HOME` set.
+   - Debug APK: `./gradlew assembleDebug` → `frontend/android/app/build/outputs/apk/debug/`.
+   - **Release signing**: copy [`frontend/android/keystore.properties.example`](frontend/android/keystore.properties.example) to `frontend/android/keystore.properties`, place your keystore file, then `./gradlew assembleRelease`.
+
+4. **CI**
+   - [`.github/workflows/android-build.yml`](.github/workflows/android-build.yml) builds a **debug** APK when `frontend/**` changes (optional repo variable `VITE_API_URL` for the packaged API host).
+
+Push notifications use the same attendance reminder pipeline as email/WhatsApp; employees enable **App push** under Settings and register the device automatically after granting notification permission in the native app.
 
 ## Design reference
 

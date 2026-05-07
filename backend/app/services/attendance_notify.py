@@ -1,7 +1,10 @@
 from typing import Literal
 
+from sqlalchemy.orm import Session
+
 from app.core.config import get_settings
 from app.models import Employee
+from app.services.fcm_push import try_send_attendance_push
 from app.services.smtp_email import send_plain_email, smtp_configured
 from app.services.whatsapp_bridge import send_whatsapp_text
 
@@ -23,6 +26,21 @@ def _bridge_configured() -> bool:
     return bool(s.whatsapp_bridge_url and s.whatsapp_bridge_secret)
 
 
+def _maybe_append_push(
+    db: Session | None,
+    employee: Employee,
+    raw_token: str,
+    msg: str,
+    sent: list[str],
+) -> None:
+    if db is None or not getattr(employee, "notify_push", True):
+        return
+    body = msg if len(msg) <= 200 else msg[:197] + "..."
+    n = try_send_attendance_push(db, employee.id, "Présence", body, raw_token)
+    if n > 0:
+        sent.append("push")
+
+
 def send_attendance_link(
     employee: Employee,
     site_name: str,
@@ -31,12 +49,14 @@ def send_attendance_link(
     *,
     require_verified: bool,
     allow_multiple: bool = False,
+    db: Session | None = None,
 ) -> list[str]:
     """
-    Deliver the attendance deep link. Returns list of channels used: 'email', 'whatsapp'.
+    Deliver the attendance deep link. Returns list of channels used: 'email', 'whatsapp', 'push'.
 
     require_verified: only send to destinations the employee has verified (when strict checks apply).
     allow_multiple: if True and channel is auto, notify every eligible channel; if False, pick email then WhatsApp.
+    db: when set, also sends FCM push if employee opted in and devices exist.
     """
     msg = build_attendance_message(employee.display_name, site_name, raw_token)
     sent: list[str] = []
@@ -60,6 +80,7 @@ def send_attendance_link(
             raise ValueError("Cannot send email (missing address, prefs, SMTP, or verification)")
         send_plain_email(employee.email, "Valider votre présence", msg)
         sent.append("email")
+        _maybe_append_push(db, employee, raw_token, msg, sent)
         return sent
 
     if channel == "whatsapp":
@@ -67,6 +88,7 @@ def send_attendance_link(
             raise ValueError("Cannot send WhatsApp (missing phone, prefs, bridge, or verification)")
         send_whatsapp_text(employee.phone_e164, msg, company_id=employee.company_id)
         sent.append("whatsapp")
+        _maybe_append_push(db, employee, raw_token, msg, sent)
         return sent
 
     # auto
@@ -84,8 +106,12 @@ def send_attendance_link(
         elif can_whatsapp(strict=require_verified):
             send_whatsapp_text(employee.phone_e164, msg, company_id=employee.company_id)
             sent.append("whatsapp")
+
+    _maybe_append_push(db, employee, raw_token, msg, sent)
+
     if not sent:
         raise ValueError(
-            "No verified notification channel available. Ask the employee to confirm email or WhatsApp in the app."
+            "No verified notification channel available. Ask the employee to confirm email or WhatsApp in the app, "
+            "or enable app notifications and register a device."
         )
     return sent

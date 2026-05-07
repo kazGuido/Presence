@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { pickCameraPhotoFile, getCurrentPositionGeo, isCapacitorNative } from '../capacitor/native';
 import { apiFetch, getEmployeeToken } from '../api/client';
 
 export function EmployeeLoading() {
@@ -75,27 +76,33 @@ export function EmployeePointer() {
       fd.append('kind', kind);
 
       if (photoMode) {
-        if (!photo) {
+        let attachment = photo;
+        if (!attachment && isCapacitorNative()) {
+          attachment = await pickCameraPhotoFile();
+        }
+        if (!attachment) {
           setErr(t('employee.pointerPhotoMode'));
           return;
         }
         fd.append('location_unavailable', 'true');
-        fd.append('file', photo);
+        fd.append('file', attachment);
       } else {
         try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000 })
-          );
-          fd.append('lat', String(pos.coords.latitude));
-          fd.append('lng', String(pos.coords.longitude));
+          const pos = await getCurrentPositionGeo();
+          fd.append('lat', String(pos.lat));
+          fd.append('lng', String(pos.lng));
           fd.append('location_unavailable', 'false');
         } catch {
-          if (!photo) {
+          let attachment = photo;
+          if (!attachment && isCapacitorNative()) {
+            attachment = await pickCameraPhotoFile();
+          }
+          if (!attachment) {
             setErr(t('employee.pointerPhotoMode'));
             return;
           }
           fd.append('location_unavailable', 'true');
-          fd.append('file', photo);
+          fd.append('file', attachment);
         }
       }
 
@@ -237,10 +244,12 @@ export function EmployeeHistorique() {
 }
 
 export function EmployeeParametres() {
+  const { t } = useTranslation();
   const token = getEmployeeToken();
   const [email, setEmail] = useState('');
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifyWa, setNotifyWa] = useState(true);
+  const [notifyPush, setNotifyPush] = useState(true);
   const [emailVerified, setEmailVerified] = useState(false);
   const [waVerified, setWaVerified] = useState(false);
   const [phone, setPhone] = useState<string | null>(null);
@@ -258,6 +267,7 @@ export function EmployeeParametres() {
         phone_e164: string | null;
         notify_email: boolean;
         notify_whatsapp: boolean;
+        notify_push?: boolean;
         email_verified: boolean;
         whatsapp_verified: boolean;
       }>)
@@ -265,6 +275,7 @@ export function EmployeeParametres() {
         setEmail(j.email ?? '');
         setNotifyEmail(j.notify_email);
         setNotifyWa(j.notify_whatsapp);
+        setNotifyPush(j.notify_push !== false);
         setEmailVerified(j.email_verified);
         setWaVerified(j.whatsapp_verified);
         setPhone(j.phone_e164);
@@ -285,6 +296,7 @@ export function EmployeeParametres() {
       const body: Record<string, unknown> = {
         notify_email: notifyEmail,
         notify_whatsapp: notifyWa,
+        notify_push: notifyPush,
       };
       if (email.trim()) body.email = email.trim();
       await apiFetch('/api/employee/communication/me', {
@@ -292,10 +304,10 @@ export function EmployeeParametres() {
         token,
         body: JSON.stringify(body),
       });
-      setMsg('Préférences enregistrées.');
+      setMsg(t('employee.settingsSaved'));
       load();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erreur');
+      setErr(e instanceof Error ? e.message : t('common.error'));
     }
   };
 
@@ -311,7 +323,7 @@ export function EmployeeParametres() {
       });
       setMsg(`Code envoyé (${channel === 'email' ? 'e-mail' : 'WhatsApp'}).`);
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erreur');
+      setErr(e instanceof Error ? e.message : t('common.error'));
     }
   };
 
@@ -330,26 +342,26 @@ export function EmployeeParametres() {
       setCode('');
       load();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erreur');
+      setErr(e instanceof Error ? e.message : t('common.error'));
     }
   };
 
   if (!token) {
     return (
       <div>
-        <h1 className="mb-4 text-2xl font-semibold">Paramètres</h1>
-        <p className="text-on-surface-variant">Connectez-vous pour gérer vos moyens de contact.</p>
+        <h1 className="mb-4 text-2xl font-semibold">{t('employee.settingsTitle')}</h1>
+        <p className="text-on-surface-variant">{t('employee.settingsLoginPrompt')}</p>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-8">
-      <h1 className="text-2xl font-semibold">Paramètres</h1>
+      <h1 className="text-2xl font-semibold">{t('employee.settingsTitle')}</h1>
 
       <form onSubmit={(e) => void savePrefs(e)} className="space-y-3 rounded-xl border border-outline/10 bg-surface-container-lowest p-4">
-        <h2 className="text-lg font-medium">Contact</h2>
-        <label className="block text-sm text-on-surface-variant">E-mail</label>
+        <h2 className="text-lg font-medium">{t('employee.settingsContact')}</h2>
+        <label className="block text-sm text-on-surface-variant">{t('employee.settingsEmail')}</label>
         <input
           className="w-full rounded border border-outline/20 px-3 py-2"
           type="email"
@@ -358,21 +370,25 @@ export function EmployeeParametres() {
         />
         {phone && (
           <p className="text-sm text-on-surface-variant">
-            Téléphone (géré par l&apos;employeur): <span className="font-mono">{phone}</span>
+            {t('employee.settingsPhoneManaged')}: <span className="font-mono">{phone}</span>
           </p>
         )}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} />
-          Notifications par e-mail
-          {emailVerified ? <span className="text-primary">(vérifié)</span> : <span className="text-secondary">(non vérifié)</span>}
+          {t('employee.settingsNotifyEmail')}
+          {emailVerified ? <span className="text-primary">{t('employee.settingsVerified')}</span> : <span className="text-secondary">{t('employee.settingsNotVerified')}</span>}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={notifyWa} onChange={(e) => setNotifyWa(e.target.checked)} />
-          Notifications WhatsApp
-          {waVerified ? <span className="text-primary">(vérifié)</span> : <span className="text-secondary">(non vérifié)</span>}
+          {t('employee.settingsNotifyWa')}
+          {waVerified ? <span className="text-primary">{t('employee.settingsVerified')}</span> : <span className="text-secondary">{t('employee.settingsNotVerified')}</span>}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={notifyPush} onChange={(e) => setNotifyPush(e.target.checked)} />
+          {t('employee.settingsNotifyPush')}
         </label>
         <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-on-primary">
-          Enregistrer
+          {t('employee.settingsSave')}
         </button>
       </form>
 

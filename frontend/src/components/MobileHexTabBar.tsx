@@ -22,7 +22,24 @@ export function MobileHexTabBar({ items, variant = 'default' }: { items: HexTabI
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
       style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
     >
-      <div className="hex-nav-glow pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-primary/8 via-transparent to-transparent" />
+      {/* Frosted strip: blur + stronger at bottom, fades upward */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[7.25rem] overflow-hidden motion-reduce:backdrop-blur-none"
+        aria-hidden
+      >
+        <div
+          className="absolute inset-x-0 bottom-0 top-0 backdrop-blur-xl motion-reduce:backdrop-blur-none"
+          style={{
+            WebkitBackdropFilter: 'blur(20px)',
+            backdropFilter: 'blur(20px)',
+            maskImage: 'linear-gradient(to top, black 0%, black 35%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to top, black 0%, black 35%, transparent 100%)',
+            background:
+              'linear-gradient(to top, rgba(249, 249, 252, 0.88) 0%, rgba(249, 249, 252, 0.32) 45%, transparent 100%)',
+          }}
+        />
+      </div>
+
       <div
         className={[
           'relative mx-auto flex items-end justify-center px-1 pb-1 pt-2',
@@ -53,7 +70,7 @@ export function MobileHexTabBar({ items, variant = 'default' }: { items: HexTabI
                 <>
                   <div
                     className={[
-                      'hex-clip flex flex-col items-center justify-center transition-all duration-200',
+                      'hex-clip flex flex-col items-center justify-center motion-safe:transition-all motion-safe:duration-200',
                       box,
                       isActive
                         ? 'bg-primary text-on-primary shadow-primary/25 ring-1 ring-primary/40'

@@ -116,6 +116,7 @@ def run_scheduled_reminders(db: Session) -> dict[str, int]:
                 "auto",
                 require_verified=True,
                 allow_multiple=True,
+                db=db,
             )
             db.add(
                 ScheduledReminderSent(

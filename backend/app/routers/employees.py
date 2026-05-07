@@ -45,6 +45,7 @@ def create_employee(
         default_work_site_id=body.default_work_site_id,
         notify_email=body.notify_email,
         notify_whatsapp=body.notify_whatsapp,
+        notify_push=body.notify_push,
     )
     db.add(emp)
     db.flush()

@@ -17,6 +17,7 @@ from app.routers import (
     auth,
     controller_sessions,
     employee_communication,
+    employee_push,
     employees,
     employer_meta,
     punches,
@@ -70,6 +71,7 @@ app.include_router(controller_sessions.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(attendance_sessions.router, prefix="/api")
 app.include_router(employee_communication.router, prefix="/api")
+app.include_router(employee_push.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(whatsapp_admin.router, prefix="/api")
 

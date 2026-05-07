@@ -34,7 +34,7 @@ export function EmployeeScanKiosk() {
       const fd = new FormData();
       fd.append('kind', kind);
       let locUnavailable = gpsDenied;
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         if (gpsDenied) {
           resolve();
           return;

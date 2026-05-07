@@ -93,6 +93,7 @@ class EmployeeCreate(BaseModel):
     default_work_site_id: str | None = None
     notify_email: bool = True
     notify_whatsapp: bool = True
+    notify_push: bool = True
 
 
 class EmployeeOut(BaseModel):
@@ -104,6 +105,7 @@ class EmployeeOut(BaseModel):
     phone_e164: str | None
     notify_email: bool
     notify_whatsapp: bool
+    notify_push: bool = True
     email_verified: bool
     whatsapp_verified: bool
     default_work_site_id: str | None
@@ -121,6 +123,7 @@ class EmployeeOut(BaseModel):
                 "phone_e164": v.phone_e164,
                 "notify_email": v.notify_email,
                 "notify_whatsapp": v.notify_whatsapp,
+                "notify_push": bool(getattr(v, "notify_push", True)),
                 "email_verified": v.email_verified_at is not None,
                 "whatsapp_verified": v.whatsapp_verified_at is not None,
                 "default_work_site_id": v.default_work_site_id,

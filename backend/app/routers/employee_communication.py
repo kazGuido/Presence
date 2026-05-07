@@ -22,6 +22,7 @@ class CommunicationOut(BaseModel):
     phone_e164: str | None
     notify_email: bool
     notify_whatsapp: bool
+    notify_push: bool = True
     email_verified: bool
     whatsapp_verified: bool
     can_show_controller_ui: bool = False
@@ -30,6 +31,7 @@ class CommunicationOut(BaseModel):
 class CommunicationUpdate(BaseModel):
     notify_email: bool | None = None
     notify_whatsapp: bool | None = None
+    notify_push: bool | None = None
     email: EmailStr | None = None
 
 
@@ -48,6 +50,7 @@ def _out(emp: Employee) -> CommunicationOut:
         phone_e164=emp.phone_e164,
         notify_email=emp.notify_email,
         notify_whatsapp=emp.notify_whatsapp,
+        notify_push=bool(getattr(emp, "notify_push", True)),
         email_verified=emp.email_verified_at is not None,
         whatsapp_verified=emp.whatsapp_verified_at is not None,
         can_show_controller_ui=bool(getattr(emp, "can_show_controller_ui", False)),
@@ -79,6 +82,8 @@ def update_communication(
         employee.notify_email = body.notify_email
     if body.notify_whatsapp is not None:
         employee.notify_whatsapp = body.notify_whatsapp
+    if body.notify_push is not None:
+        employee.notify_push = body.notify_push
     if body.email is not None:
         if body.email != employee.email:
             employee.email = body.email

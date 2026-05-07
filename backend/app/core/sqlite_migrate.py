@@ -24,7 +24,8 @@ def apply_sqlite_migrations(engine: Engine) -> None:
         stmts.append("ALTER TABLE employees ADD COLUMN whatsapp_verified_at DATETIME")
     if "can_show_controller_ui" not in cols:
         stmts.append("ALTER TABLE employees ADD COLUMN can_show_controller_ui BOOLEAN DEFAULT 0")
-    if stmts:
+    if "notify_push" not in cols:
+        stmts.append("ALTER TABLE employees ADD COLUMN notify_push BOOLEAN DEFAULT 1")
         with engine.begin() as conn:
             for s in stmts:
                 conn.execute(text(s))

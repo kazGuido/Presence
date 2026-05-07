@@ -2,9 +2,11 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from './LanguageToggle';
 import { MobileHexTabBar, type HexTabItem } from './MobileHexTabBar';
+import { useEmployeePushRegistration } from '../hooks/useEmployeePushRegistration';
 
 export function EmployeeShell() {
   const { t } = useTranslation();
+  useEmployeePushRegistration();
   const employeeHexTabs: HexTabItem[] = [
     { to: '/employee/historique', label: t('employee.navHistory'), icon: 'history' },
     { to: '/employee', label: t('employee.navPointer'), icon: 'alarm_on', center: true, matchIndex: true },

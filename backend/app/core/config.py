@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Worker
     reminder_lead_minutes: int = 30  # send "confirm attendance" this many minutes before schedule start
 
+    # FCM (mobile push) — set FCM_SERVICE_ACCOUNT_FILE to service account JSON from Firebase
+    fcm_project_id: str = ""
+    fcm_service_account_file: str = ""  # path to Google service account JSON
+
 
 @lru_cache
 def get_settings() -> Settings:

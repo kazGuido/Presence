@@ -116,6 +116,7 @@ class Employee(Base):
     pin_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_whatsapp: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_push: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     whatsapp_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     can_show_controller_ui: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -193,6 +194,23 @@ class AttendanceSession(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     completed_punch_id: Mapped[str | None] = mapped_column(CHAR(36), ForeignKey("punches.id"), nullable=True)
+
+
+class EmployeePushDevice(Base):
+    """FCM device registrations for native push (employee portal app)."""
+
+    __tablename__ = "employee_push_devices"
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=_uuid)
+    employee_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("employees.id"), nullable=False, index=True)
+    fcm_token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class AuditEvent(Base):

@@ -28,6 +28,13 @@ async function parseError(res: Response): Promise<string> {
   }
 }
 
+/** Empty in web Docker build (same-origin). Set `VITE_API_URL` for Capacitor/static hosting off-origin. */
+export function getApiBaseUrl(): string {
+  const v = import.meta.env.VITE_API_URL;
+  if (typeof v === 'string' && v.trim()) return v.replace(/\/$/, '');
+  return '';
+}
+
 export async function apiFetch(
   path: string,
   opts: RequestInit & { token?: string | null } = {}
@@ -39,8 +46,9 @@ export async function apiFetch(
   if (!h.has('Content-Type') && rest.body && !(rest.body instanceof FormData)) {
     h.set('Content-Type', 'application/json');
   }
-  const base = import.meta.env.DEV ? '' : '';
-  const res = await fetch(`${base}${path}`, { ...rest, headers: h });
+  const base = getApiBaseUrl();
+  const url = path.startsWith('http') ? path : `${base}${path}`;
+  const res = await fetch(url, { ...rest, headers: h });
   if (!res.ok) throw new Error(await parseError(res));
   return res;
 }
