@@ -37,6 +37,11 @@ def create_kiosk_session(
     r = get_redis()
     if r is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Kiosk requires Redis")
+    if not company.allow_kiosk_borne:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Kiosk (host QR) is disabled for your company",
+        )
     if not employee.can_show_controller_ui:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Controller UI not enabled for this employee")
     if not employee.default_work_site_id:
@@ -81,6 +86,12 @@ async def punch_via_kiosk(
     if str(kiosk.get("company_id")) != company.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong company for this kiosk")
 
+    if not company.allow_punch_kiosk_scan:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Kiosk scan punch is disabled for your company",
+        )
+
     site = db.get(WorkSite, str(kiosk["work_site_id"]))
     if not site or site.company_id != company.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid kiosk site")
@@ -100,8 +111,21 @@ async def punch_via_kiosk(
             f"Expected {expected.value}, got {pk.value}",
         )
 
-    photo_path = save_optional_image(file)
     photo_only = bool(location_unavailable) or lat is None or lng is None
+
+    if photo_only:
+        if not company.allow_punch_photo:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Photo attestation is disabled for your company",
+            )
+    elif not company.allow_punch_gps:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "GPS punch is disabled for your company",
+        )
+
+    photo_path = save_optional_image(file)
 
     if photo_only:
         if not photo_path:

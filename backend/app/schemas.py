@@ -46,6 +46,32 @@ class EmployeePatchIn(BaseModel):
     can_show_controller_ui: bool | None = None
 
 
+class CompanyAttendanceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    allow_punch_gps: bool
+    allow_punch_photo: bool
+    allow_punch_kiosk_scan: bool
+    allow_kiosk_borne: bool
+
+
+class CompanyAttendanceUpdate(BaseModel):
+    allow_punch_gps: bool
+    allow_punch_photo: bool
+    allow_punch_kiosk_scan: bool
+    allow_kiosk_borne: bool
+
+    @model_validator(mode="after")
+    def at_least_one_app_or_scan_path(self) -> "CompanyAttendanceUpdate":
+        if not (
+            self.allow_punch_gps or self.allow_punch_photo or self.allow_punch_kiosk_scan
+        ):
+            raise ValueError(
+                "At least one of GPS punch, photo attestation, or kiosk scan must stay enabled"
+            )
+        return self
+
+
 class WorkSiteCreate(BaseModel):
     name: str
     lat: float

@@ -55,6 +55,12 @@ class Company(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    # Punch channel policy (employer-configurable)
+    allow_punch_gps: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_punch_photo: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_punch_kiosk_scan: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_kiosk_borne: Mapped[bool] = mapped_column(Boolean, default=True)
+
     employers: Mapped[list["EmployerUser"]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
     )

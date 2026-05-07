@@ -82,8 +82,21 @@ async def create_my_punch(
     if not site or site.company_id != company.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid default work site")
 
-    photo_path = save_optional_image(file)
     photo_only = bool(location_unavailable) or lat is None or lng is None
+
+    if photo_only:
+        if not company.allow_punch_photo:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Photo attestation is disabled for your company",
+            )
+    elif not company.allow_punch_gps:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "GPS punch is disabled for your company",
+        )
+
+    photo_path = save_optional_image(file)
 
     if photo_only:
         if not photo_path:
@@ -146,6 +159,12 @@ def create_my_punch_json(
     site = db.get(WorkSite, employee.default_work_site_id)
     if not site or site.company_id != company.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid default work site")
+
+    if not company.allow_punch_gps:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "GPS punch is disabled for your company",
+        )
 
     ok, dist = within_radius(body.lat, body.lng, site.lat, site.lng, site.radius_m)
     punch = Punch(

@@ -1,8 +1,15 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { pickCameraPhotoFile, getCurrentPositionGeo, isCapacitorNative } from '../capacitor/native';
 import { apiFetch, getEmployeeToken } from '../api/client';
+
+export type AttendancePolicy = {
+  allow_punch_gps: boolean;
+  allow_punch_photo: boolean;
+  allow_punch_kiosk_scan: boolean;
+  allow_kiosk_borne: boolean;
+};
 
 export function EmployeeLoading() {
   const { t } = useTranslation();
@@ -43,6 +50,7 @@ export function EmployeePointer() {
   const [busy, setBusy] = useState(false);
   const [photoMode, setPhotoMode] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const token = getEmployeeToken();
 
   useEffect(() => {
@@ -51,31 +59,48 @@ export function EmployeePointer() {
       .then((r) => r.json())
       .then(setState)
       .catch((e) => setErr(String(e.message)));
+    apiFetch('/api/employee/attendance-policy', { token })
+      .then((r) => r.json() as Promise<AttendancePolicy>)
+      .then(setPolicy)
+      .catch((e) => setErr(String(e.message)));
   }, [token]);
+
+  useEffect(() => {
+    if (!policy) return;
+    if (policy.allow_punch_photo && !policy.allow_punch_gps) setPhotoMode(true);
+    if (policy.allow_punch_gps && !policy.allow_punch_photo) setPhotoMode(false);
+  }, [policy]);
 
   useEffect(() => {
     if (!navigator.permissions?.query) return;
     void navigator.permissions
       .query({ name: 'geolocation' as PermissionName })
       .then((p) => {
-        if (p.state === 'denied') setPhotoMode(true);
+        if (p.state === 'denied' && policy?.allow_punch_gps) setPhotoMode(true);
         p.onchange = () => {
-          if (p.state === 'denied') setPhotoMode(true);
+          if (p.state === 'denied' && policy?.allow_punch_gps) setPhotoMode(true);
         };
       })
       .catch(() => {});
-  }, []);
+  }, [policy?.allow_punch_gps]);
 
   const punch = async () => {
     if (!token) return;
     setBusy(true);
     setErr(null);
+    const canGps = policy?.allow_punch_gps ?? true;
+    const canPhoto = policy?.allow_punch_photo ?? true;
     try {
+      if (!canGps && !canPhoto) {
+        setErr(t('employee.pointerAppPunchDisabled'));
+        return;
+      }
+
       const kind = state?.next_kind ?? 'punch_in';
       const fd = new FormData();
       fd.append('kind', kind);
 
-      if (photoMode) {
+      if (!canGps && canPhoto) {
         let attachment = photo;
         if (!attachment && isCapacitorNative()) {
           attachment = await pickCameraPhotoFile();
@@ -86,13 +111,13 @@ export function EmployeePointer() {
         }
         fd.append('location_unavailable', 'true');
         fd.append('file', attachment);
+      } else if (canGps && !canPhoto) {
+        const pos = await getCurrentPositionGeo();
+        fd.append('lat', String(pos.lat));
+        fd.append('lng', String(pos.lng));
+        fd.append('location_unavailable', 'false');
       } else {
-        try {
-          const pos = await getCurrentPositionGeo();
-          fd.append('lat', String(pos.lat));
-          fd.append('lng', String(pos.lng));
-          fd.append('location_unavailable', 'false');
-        } catch {
+        if (photoMode) {
           let attachment = photo;
           if (!attachment && isCapacitorNative()) {
             attachment = await pickCameraPhotoFile();
@@ -103,6 +128,28 @@ export function EmployeePointer() {
           }
           fd.append('location_unavailable', 'true');
           fd.append('file', attachment);
+        } else {
+          try {
+            const pos = await getCurrentPositionGeo();
+            fd.append('lat', String(pos.lat));
+            fd.append('lng', String(pos.lng));
+            fd.append('location_unavailable', 'false');
+          } catch {
+            let attachment = photo;
+            if (!attachment && isCapacitorNative()) {
+              attachment = await pickCameraPhotoFile();
+            }
+            if (!attachment) {
+              if (!canPhoto) {
+                setErr(t('employee.pointerGpsRequired'));
+                return;
+              }
+              setErr(t('employee.pointerPhotoMode'));
+              return;
+            }
+            fd.append('location_unavailable', 'true');
+            fd.append('file', attachment);
+          }
         }
       }
 
@@ -123,6 +170,13 @@ export function EmployeePointer() {
   if (!token) {
     return <p className="text-center text-on-surface-variant">{t('employee.pointerLogin')}</p>;
   }
+
+  const canGps = policy?.allow_punch_gps ?? true;
+  const canPhoto = policy?.allow_punch_photo ?? true;
+  const canKioskScan = policy?.allow_punch_kiosk_scan ?? true;
+  const showAppPunch = canGps || canPhoto;
+  const showPhotoToggle = canGps && canPhoto;
+  const showGpsHint = canGps;
 
   const label =
     state?.next_kind === 'punch_out' ? t('employee.pointerClockOut') : t('employee.pointerClockIn');
@@ -155,29 +209,64 @@ export function EmployeePointer() {
             <p className="mt-2 text-sm text-on-surface-variant">
               {t('employee.pointerDate')}: {state?.local_date ?? '…'}
             </p>
+            {err && !showAppPunch && <p className="mt-3 text-sm text-error">{err}</p>}
           </div>
-          <div className="rounded-xl border border-primary/10 bg-surface-container-lowest p-6 shadow-sm motion-safe:transition-shadow">
-            <label className="mb-3 flex items-center gap-2 text-sm text-on-surface-variant">
-              <input type="checkbox" checked={photoMode} onChange={(e) => setPhotoMode(e.target.checked)} />
-              {t('employee.pointerPhotoMode')}
-            </label>
-            {photoMode && (
-              <input type="file" accept="image/*" capture="environment" className="mb-3 w-full text-sm" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-            )}
-            <p className="mb-4 text-center text-sm text-on-surface-variant">{t('employee.pointerGpsHint')}</p>
-            {err && <p className="mb-2 text-center text-sm text-error">{err}</p>}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void punch()}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-4 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95 disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-                alarm_on
-              </span>
-              {busy ? '…' : label}
-            </button>
-          </div>
+
+          {canKioskScan && (
+            <div className="rounded-xl border border-primary/20 bg-primary-container/10 p-6 shadow-sm">
+              <h3 className="mb-2 text-lg font-semibold text-primary">{t('employee.pointerKioskCardTitle')}</h3>
+              <p className="mb-4 text-sm text-on-surface-variant">{t('employee.pointerKioskCardBody')}</p>
+              {!showAppPunch && (
+                <p className="mb-4 rounded-lg border border-secondary-container/30 bg-surface-container-lowest/80 p-3 text-sm text-on-surface-variant">
+                  {t('employee.pointerKioskOnlyHint')}
+                </p>
+              )}
+              <Link
+                to="/employee/scan-kiosk"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary bg-surface-container-lowest py-3 text-center font-semibold text-primary motion-safe:transition-opacity hover:opacity-90"
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  qr_code_scanner
+                </span>
+                {t('employee.pointerKioskCta')}
+              </Link>
+            </div>
+          )}
+
+          {showAppPunch ? (
+            <div className="rounded-xl border border-primary/10 bg-surface-container-lowest p-6 shadow-sm motion-safe:transition-shadow">
+              <h3 className="mb-2 text-sm font-semibold text-on-surface">{t('employee.pointerAppPunchTitle')}</h3>
+              {showPhotoToggle && (
+                <label className="mb-3 flex items-center gap-2 text-sm text-on-surface-variant">
+                  <input type="checkbox" checked={photoMode} onChange={(e) => setPhotoMode(e.target.checked)} />
+                  {t('employee.pointerPhotoMode')}
+                </label>
+              )}
+              {photoMode && canPhoto && (
+                <input type="file" accept="image/*" capture="environment" className="mb-3 w-full text-sm" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+              )}
+              {showGpsHint && (
+                <p className="mb-4 text-center text-sm text-on-surface-variant">{t('employee.pointerGpsHint')}</p>
+              )}
+              {!showGpsHint && canPhoto && (
+                <p className="mb-4 text-center text-sm text-on-surface-variant">{t('employee.pointerPhotoOnlyHint')}</p>
+              )}
+              {err && <p className="mb-2 text-center text-sm text-error">{err}</p>}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void punch()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-4 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  alarm_on
+                </span>
+                {busy ? '…' : label}
+              </button>
+            </div>
+          ) : (
+            !canKioskScan && <p className="rounded-xl border border-error/30 bg-error-container/10 p-4 text-center text-sm text-error">{t('employee.pointerAppPunchDisabled')}</p>
+          )}
         </div>
       </div>
     </div>

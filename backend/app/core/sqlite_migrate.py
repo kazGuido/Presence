@@ -8,6 +8,22 @@ def apply_sqlite_migrations(engine: Engine) -> None:
     if not str(engine.url).startswith("sqlite"):
         return
     insp = inspect(engine)
+    if insp.has_table("companies"):
+        ccols = {c["name"] for c in insp.get_columns("companies")}
+        cstmts: list[str] = []
+        if "allow_punch_gps" not in ccols:
+            cstmts.append("ALTER TABLE companies ADD COLUMN allow_punch_gps BOOLEAN DEFAULT 1")
+        if "allow_punch_photo" not in ccols:
+            cstmts.append("ALTER TABLE companies ADD COLUMN allow_punch_photo BOOLEAN DEFAULT 1")
+        if "allow_punch_kiosk_scan" not in ccols:
+            cstmts.append("ALTER TABLE companies ADD COLUMN allow_punch_kiosk_scan BOOLEAN DEFAULT 1")
+        if "allow_kiosk_borne" not in ccols:
+            cstmts.append("ALTER TABLE companies ADD COLUMN allow_kiosk_borne BOOLEAN DEFAULT 1")
+        if cstmts:
+            with engine.begin() as conn:
+                for s in cstmts:
+                    conn.execute(text(s))
+
     if not insp.has_table("employees"):
         return
     cols = {c["name"] for c in insp.get_columns("employees")}
@@ -26,6 +42,7 @@ def apply_sqlite_migrations(engine: Engine) -> None:
         stmts.append("ALTER TABLE employees ADD COLUMN can_show_controller_ui BOOLEAN DEFAULT 0")
     if "notify_push" not in cols:
         stmts.append("ALTER TABLE employees ADD COLUMN notify_push BOOLEAN DEFAULT 1")
+    if stmts:
         with engine.begin() as conn:
             for s in stmts:
                 conn.execute(text(s))

@@ -9,6 +9,7 @@ export function EmployeeController() {
   const [kioskToken, setKioskToken] = useState<string | null>(null);
   const [, setTtl] = useState(90);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [borneCompanyAllowed, setBorneCompanyAllowed] = useState<boolean | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -26,6 +27,14 @@ export function EmployeeController() {
 
   useEffect(() => {
     if (!token) return;
+    void apiFetch('/api/employee/attendance-policy', { token })
+      .then((r) => r.json() as Promise<{ allow_kiosk_borne: boolean }>)
+      .then((j) => setBorneCompanyAllowed(j.allow_kiosk_borne))
+      .catch(() => setBorneCompanyAllowed(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
     void apiFetch('/api/employee/communication/me', { token })
       .then((r) => r.json() as Promise<{ can_show_controller_ui?: boolean }>)
       .then((j) => setAllowed(Boolean(j.can_show_controller_ui)))
@@ -33,23 +42,35 @@ export function EmployeeController() {
   }, [token]);
 
   useEffect(() => {
-    if (allowed) void refresh();
-  }, [allowed, refresh]);
+    if (allowed && borneCompanyAllowed) void refresh();
+  }, [allowed, borneCompanyAllowed, refresh]);
 
   useEffect(() => {
-    if (!kioskToken || !allowed) return;
+    if (!kioskToken || !allowed || !borneCompanyAllowed) return;
     const id = window.setInterval(() => void refresh(), 30_000);
     return () => window.clearInterval(id);
-  }, [kioskToken, allowed, refresh]);
+  }, [kioskToken, allowed, borneCompanyAllowed, refresh]);
 
   if (!token) {
     return <p className="text-center text-on-surface-variant">{t('employee.pointerLogin')}</p>;
+  }
+
+  if (allowed === null || borneCompanyAllowed === null) {
+    return <p className="text-center text-on-surface-variant">{t('common.loading')}</p>;
   }
 
   if (allowed === false) {
     return (
       <div className="mx-auto max-w-lg rounded-2xl border border-outline/20 bg-surface-container-lowest p-8 text-center">
         <p className="text-on-surface-variant">{t('employee.controllerDisabled')}</p>
+      </div>
+    );
+  }
+
+  if (borneCompanyAllowed === false) {
+    return (
+      <div className="mx-auto max-w-lg rounded-2xl border border-outline/20 bg-surface-container-lowest p-8 text-center">
+        <p className="text-on-surface-variant">{t('employee.controllerBorneCompanyOff')}</p>
       </div>
     );
   }
@@ -66,7 +87,7 @@ export function EmployeeController() {
         <p className="mt-2 text-sm text-on-surface-variant">{t('employee.controllerSubtitle')}</p>
       </div>
       {err && <p className="text-sm text-error">{err}</p>}
-      {allowed && kioskToken && (
+      {allowed && borneCompanyAllowed && kioskToken && (
         <div className="flex flex-col items-center gap-4 rounded-2xl border border-primary/15 bg-surface-container-lowest p-6">
           <div className="rounded-xl bg-white p-4 shadow-sm">
             <QRCodeSVG value={scanUrl} size={220} level="M" />
