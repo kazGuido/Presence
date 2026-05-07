@@ -63,6 +63,8 @@ services:
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Attendance}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
       REMINDER_LEAD_MINUTES: ${REMINDER_LEAD_MINUTES:-30}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
     volumes:
       - api_data:/app/data
       - api_uploads:/app/uploads
@@ -100,6 +102,8 @@ services:
       SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
       REMINDER_LEAD_MINUTES: ${REMINDER_LEAD_MINUTES:-30}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
     volumes:
       - api_data:/app/data
     depends_on:

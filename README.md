@@ -68,7 +68,7 @@ Use a project `.env` (Compose reads it from the repo root) for secrets and URLs,
 
 - `JWT_SECRET`, `WHATSAPP_BRIDGE_SECRET`
 - `PUBLIC_APP_URL` — must be the browser-reachable base URL used in `/attend/...` links (e.g. `http://localhost:8000` when using compose)
-- `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_FILE` — optional; required for **native push** to Android/iOS apps (Firebase HTTP v1). Point `FCM_SERVICE_ACCOUNT_FILE` at the service account JSON path inside the container (e.g. mount a read-only volume).
+- `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_FILE` — optional; required for **native push** to Android/iOS apps (Firebase HTTP v1). Point `FCM_SERVICE_ACCOUNT_FILE` at the service account JSON path inside the container (e.g. mount a read-only volume). Set these on both **`api`** and **`worker`** if you use Compose — reminders run in the worker.
 - `SMTP_*` — optional; required to send attendance links or verification codes by email
 - `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` — match the MinIO service defaults or your overrides
 
