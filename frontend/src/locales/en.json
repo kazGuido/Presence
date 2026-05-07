@@ -86,14 +86,15 @@
     "confirmErrorTitle": "Error",
     "confirmErrorBody": "Try again from Clock.",
     "controllerTitle": "On-site kiosk",
-    "controllerSubtitle": "Show this QR to colleagues who are already signed in on this phone.",
+    "controllerSubtitle": "Colleagues scan this QR with their own phone (camera or QR app). Each person must be signed in to the employee portal on that device, then they confirm in/out for their own account.",
     "controllerRefresh": "Refresh QR",
     "controllerDisabled": "Your employer has not enabled kiosk mode for your account.",
     "scanTitle": "Scan check-in",
     "scanConfirm": "Confirm punch",
     "scanSuccess": "Recorded.",
     "scanNoToken": "Missing kiosk token.",
-    "scanNeedMagic": "Open your magic sign-in link in this browser first, then open this page again (same browser)."
+    "scanNeedMagic": "Sign in to the employee app on this phone first (PIN, code, or magic link). Then open this page again—re-scan the QR or use the same link.",
+    "scanSignInCta": "Employee sign-in"
   },
   "employer": {
     "spaceLabel": "Employer space",

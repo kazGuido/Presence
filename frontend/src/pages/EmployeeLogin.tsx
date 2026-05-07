@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { FormEvent, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, setEmployeeToken } from '../api/client';
 
@@ -8,6 +8,14 @@ type Tab = 'pin' | 'otp' | 'magic';
 export function EmployeeLogin() {
   const { t } = useTranslation();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const afterLogin = useMemo(() => {
+    const next = searchParams.get('next');
+    if (next && next.startsWith('/employee') && !next.includes('//')) {
+      return next;
+    }
+    return '/employee/loading';
+  }, [searchParams]);
   const [tab, setTab] = useState<Tab>('magic');
   const [companySlug, setCompanySlug] = useState('demo-corp');
   const [employeeId, setEmployeeId] = useState('');
@@ -27,7 +35,7 @@ export function EmployeeLogin() {
       });
       const data = (await res.json()) as { access_token: string };
       setEmployeeToken(data.access_token);
-      nav('/employee/loading');
+      nav(afterLogin, { replace: true });
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : t('common.error'));
     }
@@ -59,7 +67,7 @@ export function EmployeeLogin() {
       });
       const data = (await res.json()) as { access_token: string };
       setEmployeeToken(data.access_token);
-      nav('/employee/loading');
+      nav(afterLogin, { replace: true });
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : t('common.error'));
     }

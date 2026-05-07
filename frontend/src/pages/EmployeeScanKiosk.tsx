@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getEmployeeToken } from '../api/client';
 
 export function EmployeeScanKiosk() {
   const { t } = useTranslation();
+  const location = useLocation();
   const [params] = useSearchParams();
   const kiosk = params.get('t');
   const token = getEmployeeToken();
@@ -81,9 +82,16 @@ export function EmployeeScanKiosk() {
   }
 
   if (!token) {
+    const nextAfterLogin = encodeURIComponent(`${location.pathname}${location.search}`);
     return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center">
+      <div className="mx-auto max-w-md space-y-4 px-4 py-16 text-center">
         <p className="text-on-surface-variant">{t('employee.scanNeedMagic')}</p>
+        <Link
+          to={`/employee/login?next=${nextAfterLogin}`}
+          className="inline-flex rounded-xl bg-primary px-6 py-3 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95"
+        >
+          {t('employee.scanSignInCta')}
+        </Link>
       </div>
     );
   }

@@ -86,14 +86,15 @@
     "confirmErrorTitle": "Erreur",
     "confirmErrorBody": "Réessayez depuis Pointer.",
     "controllerTitle": "Borne sur site",
-    "controllerSubtitle": "Montrez ce QR aux collègues déjà connectés sur ce téléphone.",
+    "controllerSubtitle": "Les collègues scannent ce QR avec leur propre téléphone (appareil photo ou lecteur QR). Chacun doit être connecté au portail employé sur cet appareil, puis confirme son entrée ou sortie.",
     "controllerRefresh": "Rafraîchir le QR",
     "controllerDisabled": "Votre employeur n’a pas activé le mode borne pour votre compte.",
     "scanTitle": "Scan pointage",
     "scanConfirm": "Confirmer le pointage",
     "scanSuccess": "Enregistré.",
     "scanNoToken": "Jeton borne manquant.",
-    "scanNeedMagic": "Ouvrez d’abord votre lien magique dans ce navigateur, puis rouvrez cette page (même navigateur)."
+    "scanNeedMagic": "Connectez-vous d’abord au portail employé sur ce téléphone (PIN, code ou lien magique). Rouvrez ensuite cette page : rescannez le QR ou réutilisez le lien.",
+    "scanSignInCta": "Connexion employé"
   },
   "employer": {
     "spaceLabel": "Espace employeur",
