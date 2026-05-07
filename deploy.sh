@@ -24,11 +24,18 @@ done
 
 if [[ -n "$NPM_CONTAINER" ]]; then
   echo "==> Smoke test from NPM container ($NPM_CONTAINER) -> http://api:8000/health"
-  if out=$(docker exec "$NPM_CONTAINER" sh -c 'command -v wget >/dev/null 2>&1 && wget -qO- http://api:8000/health || curl -fsS http://api:8000/health'); then
-    echo "$out"
-    echo "OK: NPM can reach the API on the shared Docker network."
-  else
-    echo "WARN: Could not reach api:8000 from $NPM_CONTAINER. Check NPM Proxy Host forwards to hostname api port 8000 (http)."
+  ok=0
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if out=$(docker exec "$NPM_CONTAINER" sh -c 'command -v wget >/dev/null 2>&1 && wget -qO- --timeout=3 http://api:8000/health 2>/dev/null || curl -fsS --connect-timeout 2 http://api:8000/health' 2>/dev/null); then
+      echo "$out"
+      echo "OK: NPM can reach the API on the shared Docker network."
+      ok=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$ok" -ne 1 ]]; then
+    echo "WARN: Could not reach api:8000 from $NPM_CONTAINER after retries. Check NPM Proxy Host forwards to hostname api port 8000 (http)."
     exit 1
   fi
 else
