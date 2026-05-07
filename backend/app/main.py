@@ -13,10 +13,14 @@ from app.core.sqlite_migrate import apply_sqlite_migrations
 from app.routers import (
     analytics,
     attendance_sessions,
+    audit,
     auth,
+    controller_sessions,
     employee_communication,
     employees,
+    employer_meta,
     punches,
+    whatsapp_admin,
     work_schedules,
     work_sites,
 )
@@ -60,10 +64,14 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(work_sites.router, prefix="/api")
 app.include_router(work_schedules.router, prefix="/api")
 app.include_router(employees.router, prefix="/api")
+app.include_router(employer_meta.router, prefix="/api")
 app.include_router(punches.router, prefix="/api")
+app.include_router(controller_sessions.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(attendance_sessions.router, prefix="/api")
 app.include_router(employee_communication.router, prefix="/api")
+app.include_router(audit.router, prefix="/api")
+app.include_router(whatsapp_admin.router, prefix="/api")
 
 _settings = get_settings()
 Path(_settings.upload_dir).mkdir(parents=True, exist_ok=True)

@@ -6,20 +6,28 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.deps import get_current_company
+from app.deps import get_current_company, get_current_employer
 from app.models import (
     AttendanceSession,
     AttendanceSessionStatus,
     Company,
     Employee,
+    EmployerUser,
     Punch,
     PunchKind,
     PunchSource,
     WorkSite,
 )
-from app.schemas import AttendanceSessionCreate, AttendanceSessionPublicOut, SendNotificationIn, SendWaIn
+from app.schemas import (
+    AttendanceSessionCreate,
+    AttendanceSessionListOut,
+    AttendanceSessionPublicOut,
+    SendNotificationIn,
+    SendWaIn,
+)
 from app.services.attendance_notify import send_attendance_link
 from app.services.attendance_sessions_core import create_attendance_session, hash_token
+from app.services.audit_log import write_audit
 from app.services.geofence import within_radius
 from app.services.uploads import save_optional_image
 from app.services.whatsapp_bridge import send_whatsapp_text
@@ -27,10 +35,26 @@ from app.services.whatsapp_bridge import send_whatsapp_text
 router = APIRouter(prefix="/attendance-sessions", tags=["attendance-sessions"])
 
 
+@router.get("", response_model=list[AttendanceSessionListOut])
+def list_sessions(
+    company: Annotated[Company, Depends(get_current_company)],
+    db: Session = Depends(get_db),
+    limit: int = 50,
+) -> list[AttendanceSession]:
+    q = (
+        db.query(AttendanceSession)
+        .filter(AttendanceSession.company_id == company.id)
+        .order_by(AttendanceSession.created_at.desc())
+        .limit(min(limit, 200))
+    )
+    return list(q.all())
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_session(
     body: AttendanceSessionCreate,
     company: Annotated[Company, Depends(get_current_company)],
+    employer: Annotated[EmployerUser, Depends(get_current_employer)],
     db: Session = Depends(get_db),
 ) -> dict:
     emp = db.get(Employee, body.employee_id)
@@ -46,6 +70,16 @@ def create_session(
         work_site_id=site.id,
         expires_hours=body.expires_hours,
     )
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employer",
+        actor_id=employer.id,
+        action="attendance_session.create",
+        entity_type="attendance_session",
+        entity_id=row.id,
+        meta=None,
+    )
     db.commit()
     db.refresh(row)
     return {"id": row.id, "token": raw, "expires_at": row.expires_at.isoformat()}
@@ -57,6 +91,7 @@ def _send_notification_impl(
     channel: Literal["auto", "email", "whatsapp"],
     company: Company,
     db: Session,
+    employer: EmployerUser | None = None,
 ) -> dict:
     row = db.get(AttendanceSession, session_id)
     if not row or row.company_id != company.id:
@@ -98,6 +133,18 @@ def _send_notification_impl(
             )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    if employer:
+        write_audit(
+            db,
+            company_id=company.id,
+            actor_type="employer",
+            actor_id=employer.id,
+            action="attendance_session.send",
+            entity_type="attendance_session",
+            entity_id=session_id,
+            meta={"channel": channel},
+        )
+        db.commit()
     return {"ok": True, "channels": channels}
 
 
@@ -106,9 +153,10 @@ def send_notification_with_token(
     session_id: str,
     body: SendNotificationIn,
     company: Annotated[Company, Depends(get_current_company)],
+    employer: Annotated[EmployerUser, Depends(get_current_employer)],
     db: Session = Depends(get_db),
 ) -> dict:
-    return _send_notification_impl(session_id, body.token, body.channel, company, db)
+    return _send_notification_impl(session_id, body.token, body.channel, company, db, employer)
 
 
 @router.post("/{session_id}/send-whatsapp-with-token")
@@ -116,9 +164,10 @@ def send_whatsapp_with_token(
     session_id: str,
     body: SendWaIn,
     company: Annotated[Company, Depends(get_current_company)],
+    employer: Annotated[EmployerUser, Depends(get_current_employer)],
     db: Session = Depends(get_db),
 ) -> dict:
-    return _send_notification_impl(session_id, body.token, "whatsapp", company, db)
+    return _send_notification_impl(session_id, body.token, "whatsapp", company, db, employer)
 
 
 @router.get("/by-token/{token}", response_model=AttendanceSessionPublicOut)
@@ -197,6 +246,7 @@ async def complete_session(
             send_whatsapp_text(
                 emp.phone_e164,
                 f"Pointage enregistré pour {site.name}. Merci.",
+                company_id=row.company_id,
             )
         except Exception:
             pass

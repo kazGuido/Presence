@@ -1,14 +1,42 @@
 import re
+import time
+from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import Company, Employee, EmployerUser
-from app.schemas import EmployeeLoginIn, LoginIn, RegisterIn, TokenOut
+from app.schemas import (
+    EmployeeLoginIn,
+    EmployeeMagicConsumeIn,
+    EmployeeOtpRequestIn,
+    EmployeeOtpVerifyIn,
+    LoginIn,
+    RegisterIn,
+    TokenOut,
+)
+from app.services.auth_magic import verify_magic_token_and_consume
+from app.services.audit_log import write_audit
+from app.services.redis_client import get_redis
+from app.services.smtp_email import send_plain_email, smtp_configured
+from app.services.verification_codes import issue_code, verify_code
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_otp_ip_bucket: dict[str, list[float]] = defaultdict(list)
+_OTP_WINDOW_SEC = 3600
+_OTP_MAX_PER_WINDOW = 8
+
+
+def _otp_throttle(ip: str) -> None:
+    now = time.time()
+    bucket = _otp_ip_bucket[ip]
+    bucket[:] = [t for t in bucket if now - t < _OTP_WINDOW_SEC]
+    if len(bucket) >= _OTP_MAX_PER_WINDOW:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many OTP requests")
+    bucket.append(now)
 
 
 def _slugify(name: str) -> str:
@@ -36,6 +64,17 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
         name=body.employer_name.strip(),
     )
     db.add(user)
+    db.flush()
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employer",
+        actor_id=user.id,
+        action="employer.register",
+        entity_type="company",
+        entity_id=company.id,
+        meta={"email": user.email},
+    )
     db.commit()
     db.refresh(user)
     token = create_access_token(
@@ -70,6 +109,81 @@ def employee_login(body: EmployeeLoginIn, db: Session = Depends(get_db)) -> Toke
             "sub": emp.id,
             "typ": "employee",
             "company_id": company.id,
+            "employee_id": emp.id,
+        }
+    )
+    return TokenOut(access_token=token)
+
+
+@router.post("/employee-magic/consume", response_model=TokenOut)
+def employee_magic_consume(body: EmployeeMagicConsumeIn, db: Session = Depends(get_db)) -> TokenOut:
+    try:
+        payload = verify_magic_token_and_consume(body.token.strip())
+    except ValueError as e:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(e)) from e
+    eid = str(payload.get("sub") or "")
+    cid = str(payload.get("company_id") or "")
+    emp = db.get(Employee, eid)
+    if not emp or not emp.active or emp.company_id != cid:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid employee")
+    token = create_access_token(
+        {
+            "sub": emp.id,
+            "typ": "employee",
+            "company_id": emp.company_id,
+            "employee_id": emp.id,
+        }
+    )
+    return TokenOut(access_token=token)
+
+
+@router.post("/employee-otp/request")
+def employee_otp_request(
+    body: EmployeeOtpRequestIn,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    if get_redis() is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OTP requires Redis")
+    if not smtp_configured():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OTP email requires SMTP")
+    _otp_throttle(request.client.host if request.client else "unknown")
+
+    company = db.query(Company).filter(Company.slug == body.company_slug.strip().lower()).first()
+    if not company:
+        return {"ok": True}
+    emp = db.get(Employee, body.employee_id)
+    if not emp or emp.company_id != company.id or not emp.active or not emp.email:
+        return {"ok": True}
+    code = issue_code(emp.id, "employee_otp_email", ttl_seconds=600)
+    try:
+        send_plain_email(
+            emp.email,
+            "Votre code de connexion Presence",
+            f"Votre code: {code}\n\nIl expire dans 10 minutes.",
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    return {"ok": True}
+
+
+@router.post("/employee-otp/verify", response_model=TokenOut)
+def employee_otp_verify(body: EmployeeOtpVerifyIn, db: Session = Depends(get_db)) -> TokenOut:
+    if get_redis() is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OTP requires Redis")
+    company = db.query(Company).filter(Company.slug == body.company_slug.strip().lower()).first()
+    if not company:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid code")
+    emp = db.get(Employee, body.employee_id)
+    if not emp or emp.company_id != company.id or not emp.active:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid code")
+    if not verify_code(emp.id, "employee_otp_email", body.code):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid code")
+    token = create_access_token(
+        {
+            "sub": emp.id,
+            "typ": "employee",
+            "company_id": emp.company_id,
             "employee_id": emp.id,
         }
     )

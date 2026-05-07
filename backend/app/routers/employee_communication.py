@@ -24,6 +24,7 @@ class CommunicationOut(BaseModel):
     notify_whatsapp: bool
     email_verified: bool
     whatsapp_verified: bool
+    can_show_controller_ui: bool = False
 
 
 class CommunicationUpdate(BaseModel):
@@ -49,6 +50,7 @@ def _out(emp: Employee) -> CommunicationOut:
         notify_whatsapp=emp.notify_whatsapp,
         email_verified=emp.email_verified_at is not None,
         whatsapp_verified=emp.whatsapp_verified_at is not None,
+        can_show_controller_ui=bool(getattr(emp, "can_show_controller_ui", False)),
     )
 
 
@@ -115,6 +117,7 @@ def request_verify(
     send_whatsapp_text(
         employee.phone_e164,
         f"Votre code de vérification: {code} (valide 15 minutes).",
+        company_id=employee.company_id,
     )
     return {"ok": True, "channel": "whatsapp"}
 

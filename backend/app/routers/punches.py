@@ -54,8 +54,9 @@ async def create_my_punch(
     company: Annotated[Company, Depends(get_employee_company)],
     db: Session = Depends(get_db),
     kind: str = Form(...),
-    lat: float = Form(...),
-    lng: float = Form(...),
+    lat: float | None = Form(None),
+    lng: float | None = Form(None),
+    location_unavailable: bool = Form(False),
     file: UploadFile | None = File(None),
 ) -> Punch:
     try:
@@ -81,19 +82,32 @@ async def create_my_punch(
     if not site or site.company_id != company.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid default work site")
 
-    ok, dist = within_radius(lat, lng, site.lat, site.lng, site.radius_m)
     photo_path = save_optional_image(file)
+    photo_only = bool(location_unavailable) or lat is None or lng is None
+
+    if photo_only:
+        if not photo_path:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Photo required when GPS location is unavailable",
+            )
+        use_lat, use_lng = site.lat, site.lng
+        ok, dist = False, None
+    else:
+        use_lat, use_lng = float(lat), float(lng)
+        ok, dist = within_radius(use_lat, use_lng, site.lat, site.lng, site.radius_m)
 
     punch = Punch(
         company_id=company.id,
         employee_id=employee.id,
         kind=pk,
         at=datetime.now(timezone.utc),
-        lat=lat,
-        lng=lng,
+        lat=use_lat,
+        lng=use_lng,
         work_site_id=site.id,
         distance_m=dist,
-        within_geofence=ok,
+        within_geofence=ok and not photo_only,
+        photo_only_attestation=photo_only,
         photo_path=photo_path,
         source=PunchSource.app,
     )

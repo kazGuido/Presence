@@ -118,12 +118,13 @@ services:
       - "127.0.0.1:${WA_BRIDGE_PORT:-13005}:3005"
     environment:
       WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
+      WHATSAPP_DATA_DIR: /data
       LOG_LEVEL: info
     volumes:
-      - wa_auth:/data/auth_info
+      - wa_data:/data
 
 volumes:
   api_data:
   api_uploads:
   minio_data:
-  wa_auth:
+  wa_data:

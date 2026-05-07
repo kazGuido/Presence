@@ -65,7 +65,7 @@ def send_attendance_link(
     if channel == "whatsapp":
         if not can_whatsapp(strict=require_verified):
             raise ValueError("Cannot send WhatsApp (missing phone, prefs, bridge, or verification)")
-        send_whatsapp_text(employee.phone_e164, msg)
+        send_whatsapp_text(employee.phone_e164, msg, company_id=employee.company_id)
         sent.append("whatsapp")
         return sent
 
@@ -75,14 +75,14 @@ def send_attendance_link(
             send_plain_email(employee.email, "Valider votre présence", msg)
             sent.append("email")
         if can_whatsapp(strict=require_verified):
-            send_whatsapp_text(employee.phone_e164, msg)
+            send_whatsapp_text(employee.phone_e164, msg, company_id=employee.company_id)
             sent.append("whatsapp")
     else:
         if can_email(strict=require_verified):
             send_plain_email(employee.email, "Valider votre présence", msg)
             sent.append("email")
         elif can_whatsapp(strict=require_verified):
-            send_whatsapp_text(employee.phone_e164, msg)
+            send_whatsapp_text(employee.phone_e164, msg, company_id=employee.company_id)
             sent.append("whatsapp")
     if not sent:
         raise ValueError(

@@ -92,6 +92,7 @@ def build_attendance_analytics(
                     last_out = p
                     break
             out_of_geo = any(not p.within_geofence for p in punches)
+            location_skipped = any(getattr(p, "photo_only_attestation", False) for p in punches)
 
             schedule_id = _active_schedule_id(db, emp.id, d)
             missing_in = first_in is None
@@ -124,6 +125,8 @@ def build_attendance_analytics(
                 flags.append("early_out")
             if out_of_geo:
                 flags.append("out_of_geofence")
+            if location_skipped:
+                flags.append("location_skipped")
 
             row = {
                 "date": d.isoformat(),

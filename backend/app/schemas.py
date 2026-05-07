@@ -27,6 +27,25 @@ class EmployeeLoginIn(BaseModel):
     pin: str = Field(min_length=4, max_length=12)
 
 
+class EmployeeMagicConsumeIn(BaseModel):
+    token: str = Field(min_length=20)
+
+
+class EmployeeOtpRequestIn(BaseModel):
+    company_slug: str
+    employee_id: str
+
+
+class EmployeeOtpVerifyIn(BaseModel):
+    company_slug: str
+    employee_id: str
+    code: str = Field(min_length=4, max_length=10)
+
+
+class EmployeePatchIn(BaseModel):
+    can_show_controller_ui: bool | None = None
+
+
 class WorkSiteCreate(BaseModel):
     name: str
     lat: float
@@ -89,6 +108,7 @@ class EmployeeOut(BaseModel):
     whatsapp_verified: bool
     default_work_site_id: str | None
     active: bool
+    can_show_controller_ui: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -105,6 +125,7 @@ class EmployeeOut(BaseModel):
                 "whatsapp_verified": v.whatsapp_verified_at is not None,
                 "default_work_site_id": v.default_work_site_id,
                 "active": v.active,
+                "can_show_controller_ui": bool(getattr(v, "can_show_controller_ui", False)),
             }
         return v
 
@@ -130,6 +151,7 @@ class PunchOut(BaseModel):
     work_site_id: str | None
     distance_m: float | None
     within_geofence: bool
+    photo_only_attestation: bool = False
     photo_path: str | None
     source: str
 
@@ -163,3 +185,54 @@ class SendNotificationIn(BaseModel):
 
 class SendWaIn(BaseModel):
     token: str = Field(min_length=10)
+
+
+class ScheduleRuleOut(BaseModel):
+    id: str
+    weekday: int
+    start_time: time
+    end_time: time
+
+    class Config:
+        from_attributes = True
+
+
+class WorkScheduleDetailOut(BaseModel):
+    id: str
+    name: str
+    rules: list[ScheduleRuleOut]
+
+    class Config:
+        from_attributes = True
+
+
+class WorkSchedulePut(BaseModel):
+    name: str | None = None
+    rules: list[ScheduleRuleIn] | None = None
+
+
+class AttendanceSessionListOut(BaseModel):
+    id: str
+    employee_id: str
+    work_site_id: str
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    completed_punch_id: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class AuditEventOut(BaseModel):
+    id: str
+    actor_type: str
+    actor_id: str
+    action: str
+    entity_type: str | None
+    entity_id: str | None
+    meta: dict[str, Any] | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

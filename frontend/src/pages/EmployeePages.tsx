@@ -1,12 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { apiFetch, getEmployeeToken } from '../api/client';
 
 export function EmployeeLoading() {
+  const { t } = useTranslation();
   const nav = useNavigate();
   useEffect(() => {
-    const t = setTimeout(() => nav('/employee', { replace: true }), 1800);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => nav('/employee', { replace: true }), 1800);
+    return () => clearTimeout(timer);
   }, [nav]);
 
   return (
@@ -19,24 +21,27 @@ export function EmployeeLoading() {
           <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
             hexagon
           </span>
-          <span className="text-xs font-medium uppercase tracking-wider opacity-80">Protocole Sécurisé</span>
+          <span className="text-xs font-medium uppercase tracking-wider opacity-80">{t('employee.loadingBadge')}</span>
         </div>
         <div className="relative mx-auto mb-8 flex h-40 w-40 items-center justify-center">
           <span className="material-symbols-outlined text-5xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
             my_location
           </span>
         </div>
-        <h1 className="mb-2 text-2xl font-semibold text-primary">Vérification de la localisation...</h1>
-        <p className="text-on-surface-variant">Établissement d&apos;une connexion sécurisée et validation des paramètres de zone.</p>
+        <h1 className="mb-2 text-2xl font-semibold text-primary">{t('employee.loadingTitle')}</h1>
+        <p className="text-on-surface-variant">{t('employee.loadingSubtitle')}</p>
       </div>
     </div>
   );
 }
 
 export function EmployeePointer() {
+  const { t } = useTranslation();
   const [state, setState] = useState<{ next_kind: string; local_date: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [photoMode, setPhotoMode] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
   const token = getEmployeeToken();
 
   useEffect(() => {
@@ -47,74 +52,118 @@ export function EmployeePointer() {
       .catch((e) => setErr(String(e.message)));
   }, [token]);
 
+  useEffect(() => {
+    if (!navigator.permissions?.query) return;
+    void navigator.permissions
+      .query({ name: 'geolocation' as PermissionName })
+      .then((p) => {
+        if (p.state === 'denied') setPhotoMode(true);
+        p.onchange = () => {
+          if (p.state === 'denied') setPhotoMode(true);
+        };
+      })
+      .catch(() => {});
+  }, []);
+
   const punch = async () => {
     if (!token) return;
     setBusy(true);
     setErr(null);
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true })
-      );
       const kind = state?.next_kind ?? 'punch_in';
-      const res = await apiFetch('/api/punches/me/json', {
+      const fd = new FormData();
+      fd.append('kind', kind);
+
+      if (photoMode) {
+        if (!photo) {
+          setErr(t('employee.pointerPhotoMode'));
+          return;
+        }
+        fd.append('location_unavailable', 'true');
+        fd.append('file', photo);
+      } else {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000 })
+          );
+          fd.append('lat', String(pos.coords.latitude));
+          fd.append('lng', String(pos.coords.longitude));
+          fd.append('location_unavailable', 'false');
+        } catch {
+          if (!photo) {
+            setErr(t('employee.pointerPhotoMode'));
+            return;
+          }
+          fd.append('location_unavailable', 'true');
+          fd.append('file', photo);
+        }
+      }
+
+      const res = await apiFetch('/api/punches/me', {
         method: 'POST',
+        body: fd,
         token,
-        body: JSON.stringify({
-          kind,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as { at: string };
       window.location.href = `/employee/confirmation?ok=1&at=${encodeURIComponent(data.at)}`;
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Erreur');
+      setErr(e instanceof Error ? e.message : t('common.error'));
     } finally {
       setBusy(false);
     }
   };
 
   if (!token) {
-    return <p className="text-center text-on-surface-variant">Connectez-vous sur /employee/login</p>;
+    return <p className="text-center text-on-surface-variant">{t('employee.pointerLogin')}</p>;
   }
 
-  const label = state?.next_kind === 'punch_out' ? 'Pointer le départ' : "Pointer l'arrivée";
+  const label =
+    state?.next_kind === 'punch_out' ? t('employee.pointerClockOut') : t('employee.pointerClockIn');
 
   return (
     <div>
       <div className="mb-8 text-center">
-        <h1 className="mb-2 text-3xl font-semibold text-primary">Validation de présence</h1>
-        <p className="text-on-surface-variant">Veuillez confirmer votre position pour l&apos;enregistrement.</p>
+        <h1 className="mb-2 text-3xl font-semibold text-primary">{t('employee.pointerTitle')}</h1>
+        <p className="text-on-surface-variant">{t('employee.pointerSubtitle')}</p>
       </div>
       <div className="grid gap-6 lg:grid-cols-12">
-        <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-primary/10 bg-surface-container-lowest shadow-sm lg:col-span-8">
+        <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-primary/10 bg-surface-container-lowest shadow-sm motion-safe:transition-shadow lg:col-span-8">
           <div className="absolute inset-0 bg-surface-container" />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="hex-clip flex h-56 w-56 items-center justify-center border-4 border-secondary-container/60 bg-secondary-container/10">
-              <div className="h-3 w-3 animate-pulse rounded-full bg-primary" />
+              <div className="h-3 w-3 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
             </div>
           </div>
           <div className="absolute left-4 top-4 rounded-lg border border-primary/10 bg-surface-container-lowest/90 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs uppercase tracking-wider text-on-surface-variant">Site</p>
-            <p className="text-lg font-semibold">Votre site par défaut</p>
+            <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('employee.pointerSite')}</p>
+            <p className="text-lg font-semibold">{t('employee.pointerDefaultSite')}</p>
           </div>
         </div>
         <div className="flex flex-col gap-6 lg:col-span-4">
-          <div className="relative overflow-hidden rounded-xl border border-primary/10 bg-surface-container-lowest p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">État</h3>
+          <div className="relative overflow-hidden rounded-xl border border-primary/10 bg-surface-container-lowest p-6 shadow-sm motion-safe:transition-shadow">
+            <h3 className="mb-4 text-lg font-semibold">{t('employee.pointerState')}</h3>
             <p className="text-sm text-on-surface-variant">
-              Prochain pointage: <strong className="text-primary">{state?.next_kind ?? '…'}</strong>
+              {t('employee.pointerNext')}: <strong className="text-primary">{state?.next_kind ?? '…'}</strong>
             </p>
-            <p className="mt-2 text-sm text-on-surface-variant">Date locale: {state?.local_date ?? '…'}</p>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              {t('employee.pointerDate')}: {state?.local_date ?? '…'}
+            </p>
           </div>
-          <div className="rounded-xl border border-primary/10 bg-surface-container-lowest p-6 shadow-sm">
-            <p className="mb-4 text-center text-sm text-on-surface-variant">GPS requis pour pointer.</p>
+          <div className="rounded-xl border border-primary/10 bg-surface-container-lowest p-6 shadow-sm motion-safe:transition-shadow">
+            <label className="mb-3 flex items-center gap-2 text-sm text-on-surface-variant">
+              <input type="checkbox" checked={photoMode} onChange={(e) => setPhotoMode(e.target.checked)} />
+              {t('employee.pointerPhotoMode')}
+            </label>
+            {photoMode && (
+              <input type="file" accept="image/*" capture="environment" className="mb-3 w-full text-sm" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+            )}
+            <p className="mb-4 text-center text-sm text-on-surface-variant">{t('employee.pointerGpsHint')}</p>
             {err && <p className="mb-2 text-center text-sm text-error">{err}</p>}
             <button
               type="button"
               disabled={busy}
               onClick={() => void punch()}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-4 font-semibold text-on-primary transition hover:opacity-95 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-4 font-semibold text-on-primary motion-safe:transition-opacity hover:opacity-95 disabled:opacity-50"
             >
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                 alarm_on
@@ -129,11 +178,20 @@ export function EmployeePointer() {
 }
 
 export function EmployeeHistorique() {
+  const { t, i18n } = useTranslation();
   const [rows, setRows] = useState<
-    Array<{ id: string; kind: string; at: string; within_geofence: boolean; distance_m: number | null }>
+    Array<{
+      id: string;
+      kind: string;
+      at: string;
+      within_geofence: boolean;
+      distance_m: number | null;
+      photo_only_attestation?: boolean;
+    }>
   >([]);
   const [err, setErr] = useState<string | null>(null);
   const token = getEmployeeToken();
+  const loc = i18n.language.startsWith('fr') ? 'fr-FR' : 'en-US';
 
   useEffect(() => {
     if (!token) return;
@@ -143,33 +201,36 @@ export function EmployeeHistorique() {
       .catch((e) => setErr(String(e.message)));
   }, [token]);
 
-  if (!token) return <p className="text-center">Connexion requise.</p>;
+  if (!token) return <p className="text-center">{t('employee.historyNeedLogin')}</p>;
 
   return (
     <div>
-      <h1 className="mb-2 text-3xl font-semibold">Historique des présences</h1>
-      <p className="mb-8 text-on-surface-variant">Vos derniers pointages.</p>
+      <h1 className="mb-2 text-3xl font-semibold">{t('employee.historyTitle')}</h1>
+      <p className="mb-8 text-on-surface-variant">{t('employee.historySubtitle')}</p>
       {err && <p className="text-error">{err}</p>}
       <div className="space-y-4">
         {rows.map((p) => (
           <article
             key={p.id}
-            className="flex flex-col justify-between gap-4 rounded-xl border border-primary/10 bg-surface-container-lowest p-5 sm:flex-row sm:items-center"
+            className="flex flex-col justify-between gap-4 rounded-xl border border-primary/10 bg-surface-container-lowest p-5 motion-safe:transition-shadow sm:flex-row sm:items-center"
           >
             <div>
-              <p className="font-semibold">{p.kind === 'punch_in' ? 'Entrée' : 'Sortie'}</p>
-              <p className="text-sm text-on-surface-variant">{new Date(p.at).toLocaleString('fr-FR')}</p>
+              <p className="font-semibold">{p.kind === 'punch_in' ? t('employee.historyIn') : t('employee.historyOut')}</p>
+              <p className="text-sm text-on-surface-variant">{new Date(p.at).toLocaleString(loc)}</p>
+              {p.photo_only_attestation && (
+                <p className="mt-1 text-xs text-on-surface-variant">Photo</p>
+              )}
             </div>
             <div
               className={`hex-clip inline-flex items-center gap-1 px-4 py-1 text-xs font-medium uppercase ${
                 p.within_geofence ? 'bg-primary-container text-on-primary-container' : 'bg-secondary-container text-on-secondary-container'
               }`}
             >
-              {p.within_geofence ? 'Validé' : 'Signalé'}
+              {p.within_geofence ? t('employee.historyOk') : t('employee.historyFlagged')}
             </div>
           </article>
         ))}
-        {rows.length === 0 && !err && <p className="text-on-surface-variant">Aucun pointage.</p>}
+        {rows.length === 0 && !err && <p className="text-on-surface-variant">{t('employee.historyEmpty')}</p>}
       </div>
     </div>
   );

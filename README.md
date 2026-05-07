@@ -60,7 +60,9 @@ Services:
 - **worker** — ARQ cron (every 5 minutes) for pre-shift attendance links; uses the same SQLite DB and Redis as the API
 - **redis** — verification codes for employee email/WhatsApp confirmation + ARQ broker
 - **minio** — object storage for punch photos when configured (API also ensures the bucket exists)
-- **whatsapp-bridge** — Baileys HTTP sender (port **3005**; scan QR in `docker compose logs whatsapp-bridge`)
+- **whatsapp-bridge** — Baileys HTTP API (port **3005**). **One WhatsApp session per company** (`/t/<company-uuid>/…`); data under `WHATSAPP_DATA_DIR/tenants/<uuid>/`. Employer **Settings → WhatsApp** uses the logged-in company only. Outbound sends use each employee’s `company_id`.
+
+**Migrating an old single `auth_info` folder:** copy its contents to `tenants/<company-id>/` inside the bridge data volume (`company-id` = `companies.id`, e.g. from `GET /api/employer/company` when logged in as that employer).
 
 Use a project `.env` (Compose reads it from the repo root) for secrets and URLs, for example:
 

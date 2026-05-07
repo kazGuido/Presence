@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     Time,
@@ -33,6 +34,7 @@ class PunchKind(str, enum.Enum):
 class PunchSource(str, enum.Enum):
     app = "app"
     whatsapp_link = "whatsapp_link"
+    controller_scan = "controller_scan"
 
 
 class AttendanceSessionStatus(str, enum.Enum):
@@ -116,6 +118,7 @@ class Employee(Base):
     notify_whatsapp: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     whatsapp_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    can_show_controller_ui: Mapped[bool] = mapped_column(Boolean, default=False)
     default_work_site_id: Mapped[str | None] = mapped_column(CHAR(36), ForeignKey("work_sites.id"), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -148,6 +151,7 @@ class Punch(Base):
     work_site_id: Mapped[str | None] = mapped_column(CHAR(36), ForeignKey("work_sites.id"), nullable=True)
     distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     within_geofence: Mapped[bool] = mapped_column(Boolean, default=True)
+    photo_only_attestation: Mapped[bool] = mapped_column(Boolean, default=False)
     photo_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     source: Mapped[PunchSource] = mapped_column(Enum(PunchSource), default=PunchSource.app)
 
@@ -189,3 +193,19 @@ class AttendanceSession(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     completed_punch_id: Mapped[str | None] = mapped_column(CHAR(36), ForeignKey("punches.id"), nullable=True)
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=_uuid)
+    company_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("companies.id"), nullable=False, index=True)
+    actor_type: Mapped[str] = mapped_column(String(32), nullable=False)  # employer | employee
+    actor_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

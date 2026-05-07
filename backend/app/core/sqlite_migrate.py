@@ -22,7 +22,19 @@ def apply_sqlite_migrations(engine: Engine) -> None:
         stmts.append("ALTER TABLE employees ADD COLUMN email_verified_at DATETIME")
     if "whatsapp_verified_at" not in cols:
         stmts.append("ALTER TABLE employees ADD COLUMN whatsapp_verified_at DATETIME")
+    if "can_show_controller_ui" not in cols:
+        stmts.append("ALTER TABLE employees ADD COLUMN can_show_controller_ui BOOLEAN DEFAULT 0")
     if stmts:
         with engine.begin() as conn:
             for s in stmts:
                 conn.execute(text(s))
+
+    if insp.has_table("punches"):
+        pcols = {c["name"] for c in insp.get_columns("punches")}
+        pstmts: list[str] = []
+        if "photo_only_attestation" not in pcols:
+            pstmts.append("ALTER TABLE punches ADD COLUMN photo_only_attestation BOOLEAN DEFAULT 0")
+        if pstmts:
+            with engine.begin() as conn:
+                for s in pstmts:
+                    conn.execute(text(s))

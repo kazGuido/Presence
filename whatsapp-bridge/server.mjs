@@ -1,6 +1,14 @@
+/**
+ * Multi-tenant Baileys bridge: one WhatsApp session per company (UUID tenant id).
+ * Routes: /t/:tenantId/health | /qr | /logout | /send
+ * Auth dirs: WHATSAPP_DATA_DIR/tenants/:tenantId/ (useMultiFileAuthState)
+ */
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import express from "express";
 import pino from "pino";
+import QRCode from "qrcode";
 import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
@@ -12,10 +20,15 @@ import qrcode from "qrcode-terminal";
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 const PORT = Number(process.env.PORT || 3005);
 const AUTH_TOKEN = process.env.WHATSAPP_BRIDGE_SECRET || "";
-const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || "./auth_info";
+const DATA_DIR = process.env.WHATSAPP_DATA_DIR || "./wa_data";
 
-/** @type {import('@whiskeysockets/baileys').WASocket | null} */
-let sock = null;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** @typedef {{ sock: import('@whiskeysockets/baileys').WASocket | null, latestQr: string | null, connecting: Promise<void> | null }} TenantState */
+
+/** @type {Map<string, TenantState>} */
+const tenants = new Map();
 
 function safeCompare(a, b) {
   try {
@@ -28,80 +41,218 @@ function safeCompare(a, b) {
   }
 }
 
+function requireAuth(req, res) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!AUTH_TOKEN || !safeCompare(token, AUTH_TOKEN)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return false;
+  }
+  return true;
+}
+
+function validTenantId(tenantId) {
+  return Boolean(tenantId && UUID_RE.test(tenantId));
+}
+
+function tenantAuthDir(tenantId) {
+  return path.join(DATA_DIR, "tenants", tenantId);
+}
+
+function getState(tenantId) {
+  let st = tenants.get(tenantId);
+  if (!st) {
+    st = { sock: null, latestQr: null, connecting: null };
+    tenants.set(tenantId, st);
+  }
+  return st;
+}
+
 function phoneToJid(phone) {
   const digits = String(phone).replace(/\D/g, "");
   return `${digits}@s.whatsapp.net`;
 }
 
-async function connect() {
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+/**
+ * @param {string} tenantId
+ * @param {TenantState} st
+ * @param {string} authDir
+ */
+async function runConnection(tenantId, st, authDir) {
+  const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion({});
-  sock = makeWASocket({
+  const sock = makeWASocket({
     version,
     auth: state,
     logger,
     printQRInTerminal: false,
   });
+  st.sock = sock;
 
   sock.ev.on("creds.update", saveCreds);
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
     if (qr) {
-      logger.info("Scan this QR with WhatsApp (Linked devices)");
+      st.latestQr = qr;
+      logger.info({ tenantId }, "WhatsApp QR generated");
       qrcode.generate(qr, { small: true });
     }
     if (connection === "close") {
       const err = lastDisconnect?.error;
       const code = err instanceof Boom ? err.output?.statusCode : undefined;
       const shouldReconnect = code !== DisconnectReason.loggedOut;
-      logger.warn({ code, shouldReconnect }, "WhatsApp connection closed");
-      sock = null;
+      logger.warn({ tenantId, code, shouldReconnect }, "WhatsApp connection closed");
+      st.sock = null;
+      st.latestQr = null;
       if (shouldReconnect) {
-        setTimeout(() => void connect().catch((e) => logger.error(e)), 4000);
+        setTimeout(() => {
+          void ensureTenantSocket(tenantId).catch((e) => logger.error({ tenantId, e }));
+        }, 4000);
       }
     } else if (connection === "open") {
-      logger.info({ user: sock?.user?.id }, "WhatsApp connected");
+      st.latestQr = null;
+      logger.info({ tenantId, user: sock?.user?.id }, "WhatsApp connected");
     }
   });
+}
+
+async function ensureTenantSocket(tenantId) {
+  if (!validTenantId(tenantId)) {
+    throw new Error("Invalid tenant id (expected company UUID)");
+  }
+  const authDir = tenantAuthDir(tenantId);
+  await fs.mkdir(authDir, { recursive: true });
+  const st = getState(tenantId);
+
+  if (st.sock?.user) return st;
+
+  if (st.connecting) {
+    await st.connecting;
+    if (st.sock?.user) return st;
+  }
+
+  st.connecting = (async () => {
+    try {
+      await runConnection(tenantId, st, authDir);
+    } catch (e) {
+      logger.error({ tenantId, e }, "connect failed");
+      st.sock = null;
+      throw e;
+    }
+  })();
+
+  try {
+    await st.connecting;
+  } finally {
+    st.connecting = null;
+  }
+
+  return st;
 }
 
 const app = express();
 app.use(express.json({ limit: "32kb" }));
 
-app.get("/health", (_req, res) => {
-  res.json({
+app.get("/t/:tenantId/health", (req, res) => {
+  if (!requireAuth(req, res)) return;
+  const tenantId = req.params.tenantId;
+  if (!validTenantId(tenantId)) {
+    return res.status(400).json({ error: "Invalid tenant id (expected company UUID)" });
+  }
+  const st = getState(tenantId);
+  if (!st.sock) {
+    return res.json({
+      ok: true,
+      tenant_id: tenantId,
+      connected: false,
+      wid: null,
+    });
+  }
+  return res.json({
     ok: true,
-    connected: Boolean(sock?.user),
-    wid: sock?.user?.id || null,
+    tenant_id: tenantId,
+    connected: Boolean(st.sock?.user),
+    wid: st.sock?.user?.id || null,
   });
 });
 
-app.post("/send", async (req, res) => {
-  const auth = req.headers.authorization || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!AUTH_TOKEN || !safeCompare(token, AUTH_TOKEN)) {
-    return res.status(401).json({ error: "Unauthorized" });
+app.get("/t/:tenantId/qr", async (req, res) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const tenantId = req.params.tenantId;
+    if (!validTenantId(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenant id (expected company UUID)" });
+    }
+    await ensureTenantSocket(tenantId);
+    const st = getState(tenantId);
+    if (st.sock?.user) {
+      return res.status(204).end();
+    }
+    if (!st.latestQr) {
+      return res.status(404).json({ error: "No QR available yet" });
+    }
+    const svg = await QRCode.toString(st.latestQr, { type: "svg" });
+    res.type("image/svg+xml").send(svg);
+  } catch (e) {
+    logger.error(e);
+    res.status(500).json({ error: String(e) });
   }
-  const { phone, text } = req.body || {};
-  if (!phone || !text) {
-    return res.status(400).json({ error: "Missing phone or text" });
+});
+
+app.post("/t/:tenantId/logout", async (req, res) => {
+  if (!requireAuth(req, res)) return;
+  const tenantId = req.params.tenantId;
+  if (!validTenantId(tenantId)) {
+    return res.status(400).json({ error: "Invalid tenant id (expected company UUID)" });
   }
-  if (!sock?.user) {
-    return res.status(503).json({
-      error: "WhatsApp not connected; scan QR in container logs",
-    });
+  const st = getState(tenantId);
+  const authDir = tenantAuthDir(tenantId);
+  try {
+    await fs.rm(authDir, { recursive: true, force: true });
+  } catch (e) {
+    logger.warn({ tenantId, e }, "Could not remove auth dir");
   }
   try {
+    await st.sock?.logout?.();
+  } catch (e) {
+    logger.warn({ tenantId, e }, "logout() failed");
+  }
+  st.sock = null;
+  st.latestQr = null;
+  setTimeout(() => {
+    void ensureTenantSocket(tenantId).catch((e) => logger.error({ tenantId, e }));
+  }, 1000);
+  res.json({ ok: true, tenant_id: tenantId });
+});
+
+app.post("/t/:tenantId/send", async (req, res) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const tenantId = req.params.tenantId;
+    if (!validTenantId(tenantId)) {
+      return res.status(400).json({ error: "Invalid tenant id (expected company UUID)" });
+    }
+    await ensureTenantSocket(tenantId);
+    const st = getState(tenantId);
+    const { phone, text } = req.body || {};
+    if (!phone || !text) {
+      return res.status(400).json({ error: "Missing phone or text" });
+    }
+    if (!st.sock?.user) {
+      return res.status(503).json({
+        error: "WhatsApp not connected for this company; pair via employer settings QR",
+      });
+    }
     const jid = phoneToJid(phone);
-    await sock.sendMessage(jid, { text: String(text) });
-    return res.json({ ok: true });
+    await st.sock.sendMessage(jid, { text: String(text) });
+    return res.json({ ok: true, tenant_id: tenantId });
   } catch (e) {
     logger.error(e);
     return res.status(500).json({ error: String(e) });
   }
 });
 
-app.listen(PORT, () => {
-  logger.info({ port: PORT, authDir: AUTH_DIR }, "Geofence attendance WhatsApp bridge listening");
-  void connect().catch((e) => logger.error(e));
+app.listen(PORT, async () => {
+  await fs.mkdir(path.join(DATA_DIR, "tenants"), { recursive: true });
+  logger.info({ port: PORT, dataDir: DATA_DIR }, "WhatsApp bridge (multi-tenant) listening");
 });
