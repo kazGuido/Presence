@@ -87,7 +87,8 @@ def seed_demo(db: Session) -> None:
         sched = WorkSchedule(company_id=co.id, name="Bureau 8-17")
         db.add(sched)
         db.flush()
-        for wd in range(7):
+        # Lun–ven only (Python weekday Mon=0 … Fri=4); avoids weekend “missing” rows in analytics.
+        for wd in range(5):
             db.add(
                 WorkScheduleRule(
                     work_schedule_id=sched.id,
@@ -96,6 +97,13 @@ def seed_demo(db: Session) -> None:
                     end_time=time(17, 0),
                 )
             )
+
+    # Existing demo DBs may still have Sat/Sun rules from older seeds — drop them for this template.
+    if sched:
+        db.query(WorkScheduleRule).filter(
+            WorkScheduleRule.work_schedule_id == sched.id,
+            WorkScheduleRule.weekday >= 5,
+        ).delete(synchronize_session=False)
 
     verified = datetime.now(timezone.utc)
     employee_rows: list[Employee] = []

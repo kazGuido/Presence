@@ -95,24 +95,30 @@ def build_attendance_analytics(
             location_skipped = any(getattr(p, "photo_only_attestation", False) for p in punches)
 
             schedule_id = _active_schedule_id(db, emp.id, d)
-            missing_in = first_in is None
-            missing_out = last_out is None
-            late_in = False
-            early_out = False
             expected_start: time | None = None
             expected_end: time | None = None
-
             if schedule_id:
-                wd = d.weekday()  # Mon=0
+                wd = d.weekday()  # Mon=0 … Sun=6
                 expected_start, expected_end = _expected_window_for_weekday(db, schedule_id, wd)
-                if expected_start and first_in:
-                    exp_start_dt = _combine_local(tz, d, expected_start)
-                    if first_in.at.astimezone(tz) > exp_start_dt + timedelta(minutes=grace_minutes):
-                        late_in = True
-                if expected_end and last_out:
-                    exp_end_dt = _combine_local(tz, d, expected_end)
-                    if last_out.at.astimezone(tz) < exp_end_dt - timedelta(minutes=grace_minutes):
-                        early_out = True
+
+            # Absence (missing in/out) only when a shift is expected that day.
+            # If the employee has a schedule but no rule for this weekday → day off (e.g. weekend with Mon–Fri template).
+            # If no schedule assignment at all, keep legacy behaviour: still flag missing punches every day.
+            shift_expected = schedule_id is None or expected_start is not None
+
+            missing_in = shift_expected and first_in is None
+            missing_out = shift_expected and last_out is None
+            late_in = False
+            early_out = False
+
+            if expected_start and first_in:
+                exp_start_dt = _combine_local(tz, d, expected_start)
+                if first_in.at.astimezone(tz) > exp_start_dt + timedelta(minutes=grace_minutes):
+                    late_in = True
+            if expected_end and last_out:
+                exp_end_dt = _combine_local(tz, d, expected_end)
+                if last_out.at.astimezone(tz) < exp_end_dt - timedelta(minutes=grace_minutes):
+                    early_out = True
 
             flags: list[str] = []
             if missing_in:
