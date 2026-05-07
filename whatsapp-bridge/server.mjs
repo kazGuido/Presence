@@ -69,6 +69,13 @@ function getState(tenantId) {
   return st;
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Max time to wait for Baileys to emit pairing QR after socket creation (race with connection.update). */
+const QR_WAIT_MS = Number(process.env.WHATSAPP_QR_WAIT_MS || 45000);
+
 function phoneToJid(phone) {
   const digits = String(phone).replace(/\D/g, "");
   return `${digits}@s.whatsapp.net`;
@@ -127,9 +134,13 @@ async function ensureTenantSocket(tenantId) {
 
   if (st.sock?.user) return st;
 
+  // Socket exists but not paired yet — pairing QR may still be loading; do not spawn a second WASocket.
+  if (st.sock && !st.sock.user) return st;
+
   if (st.connecting) {
     await st.connecting;
     if (st.sock?.user) return st;
+    if (st.sock && !st.sock.user) return st;
   }
 
   st.connecting = (async () => {
@@ -189,11 +200,21 @@ app.get("/t/:tenantId/qr", async (req, res) => {
     if (st.sock?.user) {
       return res.status(204).end();
     }
-    if (!st.latestQr) {
-      return res.status(404).json({ error: "No QR available yet" });
+    const deadline = Date.now() + QR_WAIT_MS;
+    while (Date.now() < deadline) {
+      if (st.sock?.user) {
+        return res.status(204).end();
+      }
+      if (st.latestQr) {
+        const svg = await QRCode.toString(st.latestQr, { type: "svg" });
+        return res.type("image/svg+xml").send(svg);
+      }
+      await sleep(150);
     }
-    const svg = await QRCode.toString(st.latestQr, { type: "svg" });
-    res.type("image/svg+xml").send(svg);
+    return res.status(404).json({
+      error: "No QR available yet",
+      hint: "WhatsApp did not send a pairing code in time; check bridge logs and try again.",
+    });
   } catch (e) {
     logger.error(e);
     res.status(500).json({ error: String(e) });

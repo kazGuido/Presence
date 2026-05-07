@@ -42,7 +42,8 @@ def bridge_health_proxy(company: Annotated[Company, Depends(get_current_company)
 @router.get("/qr")
 def bridge_qr_proxy(company: Annotated[Company, Depends(get_current_company)]) -> Response:
     try:
-        r = httpx.get(f"{_tenant_prefix(company)}/qr", headers=_bridge_headers(), timeout=15.0)
+        # Bridge may wait for Baileys to emit the pairing QR (avoids "No QR available yet" race).
+        r = httpx.get(f"{_tenant_prefix(company)}/qr", headers=_bridge_headers(), timeout=60.0)
     except httpx.RequestError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Bridge unreachable: {e}") from e
     if r.status_code == 204:
