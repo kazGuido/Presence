@@ -20,11 +20,12 @@ export function setEmployeeToken(t: string | null) {
 }
 
 async function parseError(res: Response): Promise<string> {
+  const text = await res.text();
   try {
-    const j = await res.json();
+    const j = JSON.parse(text) as { detail?: unknown };
     return typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail ?? j);
   } catch {
-    return await res.text();
+    return text || res.statusText;
   }
 }
 
