@@ -63,6 +63,7 @@ export default function App() {
         </Route>
         <Route path="/employee/login" element={<EmployeeLogin />} />
         <Route path="/employee/magic" element={<EmployeeMagic />} />
+        <Route path="/employee/scan-kiosk/:kioskToken" element={<EmployeeScanKiosk />} />
         <Route path="/employee/scan-kiosk" element={<EmployeeScanKiosk />} />
         <Route path="/employee" element={<EmployeeShell />}>
           <Route index element={<EmployeePointer />} />

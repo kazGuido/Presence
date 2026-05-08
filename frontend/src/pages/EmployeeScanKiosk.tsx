@@ -1,13 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getEmployeeToken } from '../api/client';
 
 export function EmployeeScanKiosk() {
   const { t } = useTranslation();
   const location = useLocation();
+  const { kioskToken: kioskFromPath } = useParams<{ kioskToken?: string }>();
   const [params] = useSearchParams();
-  const kiosk = params.get('t');
+  const kiosk = params.get('t') ?? kioskFromPath ?? null;
   const token = getEmployeeToken();
   const [state, setState] = useState<{ next_kind: string; local_date: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,7 +79,18 @@ export function EmployeeScanKiosk() {
   };
 
   if (!kiosk) {
-    return <p className="px-4 py-12 text-center text-on-surface-variant">{t('employee.scanNoToken')}</p>;
+    return (
+      <div className="mx-auto max-w-md space-y-4 px-4 py-12 text-center">
+        <h1 className="text-lg font-semibold text-primary">{t('employee.scanNoTokenTitle')}</h1>
+        <p className="text-sm text-on-surface-variant">{t('employee.scanNoTokenBody')}</p>
+        <Link
+          to="/employee"
+          className="inline-flex rounded-xl border border-outline/30 px-5 py-2 text-sm font-semibold text-primary pressable"
+        >
+          {t('employee.scanNoTokenBack')}
+        </Link>
+      </div>
+    );
   }
 
   if (!token) {

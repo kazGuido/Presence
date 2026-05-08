@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { pickCameraPhotoFile, getCurrentPositionGeo, isCapacitorNative } from '../capacitor/native';
 import { apiFetch, getEmployeeToken } from '../api/client';
@@ -232,15 +232,12 @@ export function EmployeePointer() {
                   {t('employee.pointerKioskOnlyHint')}
                 </p>
               )}
-              <Link
-                to="/employee/scan-kiosk"
-                className="pressable flex w-full items-center justify-center gap-2 rounded-lg border border-primary bg-surface-container-lowest py-3 text-center font-semibold text-primary motion-safe:transition-opacity hover:opacity-90"
-              >
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <div className="flex items-start gap-3 rounded-lg border border-outline/20 bg-surface-container-lowest/80 p-4 text-left">
+                <span className="material-symbols-outlined shrink-0 text-primary" aria-hidden>
                   qr_code_scanner
                 </span>
-                {t('employee.pointerKioskCta')}
-              </Link>
+                <p className="text-sm text-on-surface-variant">{t('employee.pointerKioskScanExplain')}</p>
+              </div>
             </div>
           )}
 

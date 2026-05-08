@@ -123,9 +123,10 @@ export function EmployeeController() {
     );
   }
 
+  /* Path-style token avoids some cameras/apps dropping query strings; ?t= still supported in EmployeeScanKiosk */
   const scanUrl =
     typeof window !== 'undefined' && kioskToken
-      ? `${window.location.origin}/employee/scan-kiosk?t=${encodeURIComponent(kioskToken)}`
+      ? `${window.location.origin}/employee/scan-kiosk/${encodeURIComponent(kioskToken)}`
       : '';
 
   return (
