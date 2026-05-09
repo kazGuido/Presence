@@ -7,6 +7,20 @@ services:
       timeout: 3s
       retries: 10
 
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-presence}
+      POSTGRES_USER: ${POSTGRES_USER:-presence}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-presence_secret}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-presence} -d ${POSTGRES_DB:-presence}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -42,7 +56,7 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: sqlite:////app/data/app.db
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-presence}:${POSTGRES_PASSWORD:-presence_secret}@db:5432/${POSTGRES_DB:-presence}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       WHATSAPP_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:3005}
       WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-change-me-bridge-secret}
@@ -66,9 +80,10 @@ services:
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
       FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
     volumes:
-      - api_data:/app/data
       - api_uploads:/app/uploads
     depends_on:
+      db:
+        condition: service_healthy
       minio-init:
         condition: service_completed_successfully
       redis:
@@ -77,13 +92,19 @@ services:
         condition: service_healthy
       whatsapp-bridge:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
     environment:
-      DATABASE_URL: sqlite:////app/data/app.db
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-presence}:${POSTGRES_PASSWORD:-presence_secret}@db:5432/${POSTGRES_DB:-presence}
       REDIS_URL: redis://redis:6379/0
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://presence.nicedaytech.com}
       WHATSAPP_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:3005}
@@ -104,9 +125,11 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
       FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
-    volumes:
-      - api_data:/app/data
     depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
       minio-init:
         condition: service_completed_successfully
       redis:
@@ -128,7 +151,7 @@ services:
       - wa_data:/data
 
 volumes:
-  api_data:
+  db_data:
   api_uploads:
   minio_data:
   wa_data:

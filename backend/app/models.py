@@ -38,6 +38,12 @@ class PunchSource(str, enum.Enum):
     controller_manual = "controller_manual"
 
 
+class GeofenceReviewStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class AttendanceSessionStatus(str, enum.Enum):
     pending = "pending"
     completed = "completed"
@@ -162,6 +168,16 @@ class Punch(Base):
     photo_only_attestation: Mapped[bool] = mapped_column(Boolean, default=False)
     photo_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     source: Mapped[PunchSource] = mapped_column(Enum(PunchSource), default=PunchSource.app)
+    geofence_review_status: Mapped[GeofenceReviewStatus | None] = mapped_column(
+        Enum(GeofenceReviewStatus), nullable=True
+    )
+    geofence_review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    geofence_reviewed_by: Mapped[str | None] = mapped_column(
+        CHAR(36), ForeignKey("employer_users.id"), nullable=True
+    )
+    geofence_reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ScheduledReminderSent(Base):
@@ -216,6 +232,25 @@ class EmployeePushDevice(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class EmployeeNotification(Base):
+    """In-app notifications shown inside the employee portal."""
+
+    __tablename__ = "employee_notifications"
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=_uuid)
+    company_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("companies.id"), nullable=False, index=True)
+    employee_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("employees.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False, default="info")
+    entity_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 

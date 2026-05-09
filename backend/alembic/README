@@ -1,0 +1,11 @@
+Alembic migrations for Presence.
+
+Common commands from `backend/`:
+
+  alembic upgrade head
+  alembic revision --autogenerate -m "describe change"
+
+For an existing database that was created before Alembic, inspect the schema first.
+If it already matches the initial migration, stamp it instead of recreating tables:
+
+  alembic stamp head

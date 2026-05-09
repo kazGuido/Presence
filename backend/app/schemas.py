@@ -81,15 +81,14 @@ class WorkSiteCreate(BaseModel):
 
 
 class WorkSiteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     lat: float
     lng: float
     radius_m: float
     static_map_image_url: str | None
-
-    class Config:
-        from_attributes = True
 
 
 class ScheduleRuleIn(BaseModel):
@@ -104,11 +103,10 @@ class WorkScheduleCreate(BaseModel):
 
 
 class WorkScheduleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
-
-    class Config:
-        from_attributes = True
 
 
 class EmployeeCreate(BaseModel):
@@ -172,7 +170,10 @@ class PunchCreate(BaseModel):
 
 
 class PunchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
+    employee_id: str
     kind: str
     at: datetime
     lat: float
@@ -183,9 +184,15 @@ class PunchOut(BaseModel):
     photo_only_attestation: bool = False
     photo_path: str | None
     source: str
+    geofence_review_status: str | None = None
+    geofence_review_note: str | None = None
+    geofence_reviewed_by: str | None = None
+    geofence_reviewed_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+
+class GeofenceReviewUpdate(BaseModel):
+    status: Literal["approved", "rejected"]
+    note: str | None = Field(default=None, max_length=1000)
 
 
 class PunchStateOut(BaseModel):
@@ -225,22 +232,20 @@ class SendWaIn(BaseModel):
 
 
 class ScheduleRuleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     weekday: int
     start_time: time
     end_time: time
 
-    class Config:
-        from_attributes = True
-
 
 class WorkScheduleDetailOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     rules: list[ScheduleRuleOut]
-
-    class Config:
-        from_attributes = True
 
 
 class WorkSchedulePut(BaseModel):
@@ -249,6 +254,8 @@ class WorkSchedulePut(BaseModel):
 
 
 class AttendanceSessionListOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     employee_id: str
     work_site_id: str
@@ -257,11 +264,10 @@ class AttendanceSessionListOut(BaseModel):
     created_at: datetime
     completed_punch_id: str | None
 
-    class Config:
-        from_attributes = True
-
 
 class AuditEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     actor_type: str
     actor_id: str
@@ -271,5 +277,15 @@ class AuditEventOut(BaseModel):
     meta: dict[str, Any] | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+
+class EmployeeNotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    body: str
+    kind: str
+    entity_type: str | None
+    entity_id: str | None
+    read_at: datetime | None
+    created_at: datetime

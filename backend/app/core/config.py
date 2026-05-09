@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
     jwt_magic_expire_minutes: int = 15
     public_app_url: str = "http://127.0.0.1:5173"
+    cors_allowed_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     whatsapp_bridge_url: str = ""
     whatsapp_bridge_secret: str = ""
     upload_dir: str = str(_BACKEND_ROOT / "uploads")
@@ -46,6 +47,15 @@ class Settings(BaseSettings):
     # FCM (mobile push) — set FCM_SERVICE_ACCOUNT_FILE to service account JSON from Firebase
     fcm_project_id: str = ""
     fcm_service_account_file: str = ""  # path to Google service account JSON
+
+    @property
+    def cors_origins(self) -> list[str]:
+        raw = self.cors_allowed_origins.strip()
+        if not raw:
+            return []
+        if raw == "*":
+            return ["*"]
+        return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
 
 
 @lru_cache

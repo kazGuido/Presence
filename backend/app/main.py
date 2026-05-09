@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.engine import make_url
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
@@ -18,6 +20,7 @@ from app.routers import (
     controller_sessions,
     employee_attendance,
     employee_communication,
+    employee_notifications,
     employee_push,
     employees,
     employer_meta,
@@ -29,16 +32,27 @@ from app.routers import (
 from app.services.object_storage import ensure_minio_bucket
 
 
+logger = logging.getLogger(__name__)
+_settings = get_settings()
+
+
+def _ensure_database_parent(database_url: str) -> None:
+    url = make_url(database_url)
+    if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
+        return
+    Path(url.database).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    Path(settings.database_url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
+    _ensure_database_parent(settings.database_url)
     Base.metadata.create_all(bind=engine)
     apply_sqlite_migrations(engine)
     try:
         ensure_minio_bucket()
     except Exception:
-        pass
+        logger.exception("MinIO bucket initialization failed; punch photo uploads may fail")
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     if os.getenv("DEMO_SEED", "").lower() in ("1", "true", "yes"):
         from app.seed import seed_demo
@@ -54,10 +68,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Geofence Attendance API", version="0.1.0", lifespan=lifespan)
+_cors_origins = _settings.cors_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials="*" not in _cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -73,11 +88,11 @@ app.include_router(controller_sessions.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(attendance_sessions.router, prefix="/api")
 app.include_router(employee_communication.router, prefix="/api")
+app.include_router(employee_notifications.router, prefix="/api")
 app.include_router(employee_push.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(whatsapp_admin.router, prefix="/api")
 
-_settings = get_settings()
 Path(_settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_settings.upload_dir), name="uploads")
 

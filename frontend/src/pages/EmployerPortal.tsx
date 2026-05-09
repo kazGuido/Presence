@@ -29,6 +29,7 @@ export function EmployerShell() {
 
   const navLinks = [
     { to: '/employer', label: t('employer.navAnalytics'), icon: 'bar_chart', end: true },
+    { to: '/employer/geofence-review', label: t('employer.navGeofenceReview'), icon: 'fact_check', end: false },
     { to: '/employer/sites', label: t('employer.navSites'), icon: 'location_on', end: false },
     { to: '/employer/schedules', label: t('employer.navSchedules'), icon: 'event', end: false },
     { to: '/employer/employees', label: t('employer.navEmployees'), icon: 'badge', end: false },
@@ -196,6 +197,21 @@ export function EmployerDashboard() {
     }
   };
 
+  const exportPunchesCsv = async () => {
+    try {
+      const r = await apiFetch(`/api/analytics/punches/export?from=${from}&to=${to}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'presence-punches.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,6 +244,13 @@ export function EmployerDashboard() {
             className="rounded-xl border border-outline/25 bg-surface px-4 py-2 text-sm font-medium text-primary motion-safe:transition-opacity hover:opacity-90"
           >
             {t('employer.exportCsv')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportPunchesCsv()}
+            className="rounded-xl border border-outline/25 bg-surface px-4 py-2 text-sm font-medium text-primary motion-safe:transition-opacity hover:opacity-90"
+          >
+            {t('employer.exportPunchesCsv')}
           </button>
           <button
             type="button"
@@ -378,6 +401,269 @@ export function EmployerDashboard() {
       )}
 
       {!data && !err && loading && (
+        <div className="flex items-center justify-center gap-3 rounded-2xl border border-dashed border-outline/30 py-16 text-on-surface-variant">
+          <span className="material-symbols-outlined animate-pulse text-3xl text-primary">hourglass_top</span>
+          {t('common.loading')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type GeofenceReviewStatus = 'pending' | 'approved' | 'rejected' | 'all';
+
+type GeofencePunch = {
+  id: string;
+  employee_id: string;
+  kind: string;
+  at: string;
+  lat: number;
+  lng: number;
+  work_site_id: string | null;
+  distance_m: number | null;
+  within_geofence: boolean;
+  photo_only_attestation: boolean;
+  photo_path: string | null;
+  source: string;
+  geofence_review_status: 'pending' | 'approved' | 'rejected' | null;
+  geofence_review_note: string | null;
+  geofence_reviewed_by: string | null;
+  geofence_reviewed_at: string | null;
+};
+
+function defaultFromDate() {
+  const d = new Date();
+  d.setDate(d.getDate() - 14);
+  return d.toISOString().slice(0, 10);
+}
+
+function statusPillClasses(status: GeofencePunch['geofence_review_status']) {
+  if (status === 'approved') return 'bg-emerald-50 text-emerald-800 ring-emerald-700/20';
+  if (status === 'rejected') return 'bg-error-container/60 text-error ring-error/20';
+  return 'bg-secondary-container/50 text-on-secondary-container ring-secondary/25';
+}
+
+export function EmployerGeofenceReview() {
+  const { t, i18n } = useTranslation();
+  const [rows, setRows] = useState<GeofencePunch[]>([]);
+  const [statusFilter, setStatusFilter] = useState<GeofenceReviewStatus>('pending');
+  const [from, setFrom] = useState(defaultFromDate);
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setErr(null);
+    setLoading(true);
+    const params = new URLSearchParams({
+      status: statusFilter,
+      from: `${from}T00:00:00Z`,
+      to: `${to}T23:59:59Z`,
+    });
+    apiFetch(`/api/punches/geofence-review?${params.toString()}`)
+      .then((r) => r.json() as Promise<GeofencePunch[]>)
+      .then(setRows)
+      .catch((e: Error) => setErr(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const review = async (punchId: string, status: 'approved' | 'rejected') => {
+    setBusyId(punchId);
+    setErr(null);
+    try {
+      await apiFetch(`/api/punches/${punchId}/geofence-review`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, note: notes[punchId] || null }),
+      });
+      setNotes((prev) => ({ ...prev, [punchId]: '' }));
+      load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const locale = i18n.language.startsWith('fr') ? 'fr-FR' : 'en-US';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-on-surface md:text-3xl">{t('employer.geofenceReviewTitle')}</h1>
+          <p className="mt-1 text-on-surface-variant">{t('employer.geofenceReviewSubtitle')}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-outline/15 bg-surface-container-low p-2 shadow-sm">
+          <select
+            className="rounded-xl border border-outline/20 bg-surface px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as GeofenceReviewStatus)}
+          >
+            <option value="pending">{t('employer.reviewStatusPending')}</option>
+            <option value="approved">{t('employer.reviewStatusApproved')}</option>
+            <option value="rejected">{t('employer.reviewStatusRejected')}</option>
+            <option value="all">{t('employer.reviewStatusAll')}</option>
+          </select>
+          <input
+            type="date"
+            className="rounded-xl border border-outline/20 bg-surface px-3 py-2 text-sm"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <span className="text-on-surface-variant">→</span>
+          <input
+            type="date"
+            className="rounded-xl border border-outline/20 bg-surface px-3 py-2 text-sm"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:opacity-95 disabled:opacity-50"
+          >
+            {loading ? '…' : t('common.refresh')}
+          </button>
+        </div>
+      </div>
+
+      {err && (
+        <div className="flex items-center gap-2 rounded-xl border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error">
+          <span className="material-symbols-outlined">error</span>
+          {err}
+        </div>
+      )}
+
+      <div className="grid gap-4">
+        {rows.map((punch) => {
+          const status = punch.geofence_review_status ?? 'pending';
+          const noteValue = notes[punch.id] ?? punch.geofence_review_note ?? '';
+          return (
+            <article
+              key={punch.id}
+              className="overflow-hidden rounded-2xl border border-outline/15 bg-surface-container-lowest shadow-sm"
+            >
+              <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusPillClasses(status)}`}
+                    >
+                      {t(`employer.reviewStatus${status[0].toUpperCase()}${status.slice(1)}`)}
+                    </span>
+                    <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-semibold text-on-surface-variant">
+                      {punch.kind.replace('_', ' ')}
+                    </span>
+                    <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-semibold text-on-surface-variant">
+                      {punch.source.replace('_', ' ')}
+                    </span>
+                    {punch.photo_only_attestation && (
+                      <span className="rounded-full bg-secondary-container/40 px-3 py-1 text-xs font-semibold text-on-secondary-container">
+                        {t('employer.geofenceReviewPhotoOnly')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="font-semibold text-on-surface">{new Date(punch.at).toLocaleString(locale)}</p>
+                    <p className="mt-1 break-all text-xs text-on-surface-variant">
+                      {t('employer.geofenceReviewEmployeeId')}: <code>{punch.employee_id}</code>
+                    </p>
+                  </div>
+
+                  <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        {t('employer.geofenceReviewDistance')}
+                      </dt>
+                      <dd className="mt-1 font-medium text-on-surface">
+                        {punch.distance_m == null ? '—' : `${Math.round(punch.distance_m)} m`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        {t('employer.geofenceReviewSite')}
+                      </dt>
+                      <dd className="mt-1 break-all font-mono text-xs text-on-surface">
+                        {punch.work_site_id ?? '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        {t('employer.geofenceReviewCoordinates')}
+                      </dt>
+                      <dd className="mt-1 font-medium tabular-nums text-on-surface">
+                        {punch.lat.toFixed(5)}, {punch.lng.toFixed(5)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        {t('employer.geofenceReviewPhoto')}
+                      </dt>
+                      <dd className="mt-1 font-medium text-on-surface">
+                        {punch.photo_path ? t('common.yes') : t('common.no')}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {punch.geofence_reviewed_at && (
+                    <p className="text-xs text-on-surface-variant">
+                      {t('employer.geofenceReviewReviewedBy', {
+                        actor: punch.geofence_reviewed_by ?? '—',
+                        date: new Date(punch.geofence_reviewed_at).toLocaleString(locale),
+                      })}
+                    </p>
+                  )}
+                </div>
+
+                <div className="w-full shrink-0 space-y-3 md:w-72">
+                  <textarea
+                    className="min-h-24 w-full rounded-xl border border-outline/20 bg-surface px-3 py-2 text-sm"
+                    placeholder={t('employer.geofenceReviewNotePlaceholder')}
+                    value={noteValue}
+                    onChange={(e) => setNotes((prev) => ({ ...prev, [punch.id]: e.target.value }))}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={busyId === punch.id}
+                      onClick={() => void review(punch.id, 'approved')}
+                      className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+                    >
+                      {t('employer.geofenceReviewApprove')}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === punch.id}
+                      onClick={() => void review(punch.id, 'rejected')}
+                      className="flex-1 rounded-xl border border-error/30 bg-error-container/30 px-4 py-2 text-sm font-semibold text-error disabled:opacity-50"
+                    >
+                      {t('employer.geofenceReviewReject')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {rows.length === 0 && !loading && !err && (
+        <div className="rounded-2xl border border-dashed border-outline/30 bg-surface-container-low/50 p-10 text-center">
+          <p className="text-lg font-semibold text-on-surface">{t('employer.geofenceReviewEmptyTitle')}</p>
+          <p className="mt-2 text-sm text-on-surface-variant">{t('employer.geofenceReviewEmptyBody')}</p>
+        </div>
+      )}
+
+      {loading && rows.length === 0 && (
         <div className="flex items-center justify-center gap-3 rounded-2xl border border-dashed border-outline/30 py-16 text-on-surface-variant">
           <span className="material-symbols-outlined animate-pulse text-3xl text-primary">hourglass_top</span>
           {t('common.loading')}

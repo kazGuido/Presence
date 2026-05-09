@@ -354,6 +354,16 @@ export function EmployeeParametres() {
   const [code, setCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<
+    Array<{
+      id: string;
+      title: string;
+      body: string;
+      kind: string;
+      read_at: string | null;
+      created_at: string;
+    }>
+  >([]);
 
   const load = () => {
     if (!token) return;
@@ -380,9 +390,29 @@ export function EmployeeParametres() {
       .catch((e: Error) => setErr(e.message));
   };
 
+  const loadNotifications = () => {
+    if (!token) return;
+    void apiFetch('/api/employee/notifications?limit=10', { token })
+      .then((r) => r.json())
+      .then(setNotifications)
+      .catch(() => setNotifications([]));
+  };
+
   useEffect(() => {
     load();
+    loadNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  const markNotificationRead = async (id: string) => {
+    if (!token) return;
+    try {
+      await apiFetch(`/api/employee/notifications/${id}/read`, { method: 'POST', token });
+      loadNotifications();
+    } catch {
+      /* keep notification visible if marking read fails */
+    }
+  };
 
   const savePrefs = async (e: FormEvent) => {
     e.preventDefault();
@@ -455,6 +485,42 @@ export function EmployeeParametres() {
   return (
     <div className="mx-auto max-w-lg space-y-8">
       <h1 className="text-2xl font-semibold">{t('employee.settingsTitle')}</h1>
+
+      <section className="space-y-3 rounded-xl border border-outline/10 bg-surface-container-lowest p-4">
+        <h2 className="text-lg font-medium">{t('employee.notificationsTitle')}</h2>
+        {notifications.length === 0 && (
+          <p className="text-sm text-on-surface-variant">{t('employee.notificationsEmpty')}</p>
+        )}
+        {notifications.map((n) => (
+          <article
+            key={n.id}
+            className={`rounded-lg border p-3 text-sm ${
+              n.read_at
+                ? 'border-outline/10 bg-surface text-on-surface-variant'
+                : 'border-primary/20 bg-primary-container/10 text-on-surface'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{n.title}</p>
+                <p className="mt-1">{n.body}</p>
+                <p className="mt-2 text-xs text-on-surface-variant">
+                  {new Date(n.created_at).toLocaleString()}
+                </p>
+              </div>
+              {!n.read_at && (
+                <button
+                  type="button"
+                  onClick={() => void markNotificationRead(n.id)}
+                  className="shrink-0 rounded-full border border-primary/30 px-3 py-1 text-xs font-medium text-primary"
+                >
+                  {t('employee.notificationsMarkRead')}
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </section>
 
       <form onSubmit={(e) => void savePrefs(e)} className="space-y-3 rounded-xl border border-outline/10 bg-surface-container-lowest p-4">
         <h2 className="text-lg font-medium">{t('employee.settingsContact')}</h2>

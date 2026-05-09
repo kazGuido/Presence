@@ -14,9 +14,11 @@ from zoneinfo import ZoneInfo
 from app.core.database import get_db
 from app.core.security import verify_password
 from app.deps import get_current_employee, get_employee_company
-from app.models import Company, Employee, Punch, PunchKind, PunchSource, WorkSite
+from app.models import Company, Employee, GeofenceReviewStatus, Punch, PunchKind, PunchSource, WorkSite
 from app.schemas import PunchOut
+from app.services.audit_log import write_audit
 from app.services.geofence import within_radius
+from app.services.in_app_notifications import create_employee_notification
 from app.services.punch_logic import next_required_kind, punches_for_local_day, today_local_date
 from app.services.redis_client import get_redis
 from app.services.uploads import save_optional_image
@@ -86,6 +88,17 @@ def create_kiosk_session(
         "controller_employee_id": employee.id,
     }
     r.setex(_kiosk_key(token), _DEFAULT_TTL, json.dumps(payload))
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="kiosk_session.create",
+        entity_type="work_site",
+        entity_id=site.id,
+        meta={"ttl_seconds": _DEFAULT_TTL},
+    )
+    db.commit()
     return {"kiosk_token": token, "ttl_seconds": _DEFAULT_TTL}
 
 
@@ -181,8 +194,31 @@ async def punch_via_kiosk(
         photo_only_attestation=photo_only,
         photo_path=photo_path,
         source=PunchSource.controller_scan,
+        geofence_review_status=None
+        if ok and not photo_only
+        else GeofenceReviewStatus.pending,
     )
     db.add(punch)
+    db.flush()
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="punch.create",
+        entity_type="punch",
+        entity_id=punch.id,
+        meta={
+            "kind": pk.value,
+            "source": PunchSource.controller_scan.value,
+            "within_geofence": punch.within_geofence,
+            "distance_m": dist,
+            "photo_only_attestation": photo_only,
+            "geofence_review_status": punch.geofence_review_status.value
+            if punch.geofence_review_status
+            else None,
+        },
+    )
     db.commit()
     db.refresh(punch)
     return punch
@@ -270,8 +306,37 @@ async def punch_via_kiosk_manual(
         photo_only_attestation=True,
         photo_path=photo_path,
         source=PunchSource.controller_manual,
+        geofence_review_status=GeofenceReviewStatus.pending,
     )
     db.add(punch)
+    db.flush()
+    create_employee_notification(
+        db,
+        company_id=company.id,
+        employee_id=target.id,
+        title="Pointage borne en attente de revue",
+        body="Un pointage manuel avec photo a été enregistré et attend la revue d'un superviseur.",
+        kind="geofence_review",
+        entity_type="punch",
+        entity_id=punch.id,
+    )
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=controller.id,
+        action="punch.create",
+        entity_type="punch",
+        entity_id=punch.id,
+        meta={
+            "target_employee_id": target.id,
+            "kind": pk.value,
+            "source": PunchSource.controller_manual.value,
+            "within_geofence": False,
+            "photo_only_attestation": True,
+            "geofence_review_status": GeofenceReviewStatus.pending.value,
+        },
+    )
     db.commit()
     db.refresh(punch)
     return punch
