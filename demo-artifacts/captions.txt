@@ -1,0 +1,33 @@
+file '01-employer-login.png'
+duration 4
+# Employer sign-in
+file '02-employer-dashboard.png'
+duration 4
+# Employer analytics dashboard with exports
+file '03-employer-sites.png'
+duration 4
+# Work-site geofence setup
+file '04-employer-employees.png'
+duration 4
+# Employee cards, channels, and kiosk permissions
+file '05-supervisor-reviews.png'
+duration 4
+# Supervisor geofence review queue
+file '06-audit-journal.png'
+duration 4
+# Employer audit journal
+file '07-employer-settings.png'
+duration 4
+# Attendance channels and WhatsApp settings
+file '08-employee-clock.png'
+duration 4
+# Employee clock screen
+file '09-employee-history.png'
+duration 4
+# Employee attendance history
+file '10-employee-settings-notifications.png'
+duration 4
+# Employee preferences and in-app notifications
+file '11-kiosk-borne.png'
+duration 4
+# Kiosk / borne host flow

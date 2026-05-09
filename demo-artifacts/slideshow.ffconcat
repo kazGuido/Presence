@@ -1,0 +1,24 @@
+ffconcat version 1.0
+file '01-employer-login.png'
+duration 4
+file '02-employer-dashboard.png'
+duration 4
+file '03-employer-sites.png'
+duration 4
+file '04-employer-employees.png'
+duration 4
+file '05-supervisor-reviews.png'
+duration 4
+file '06-audit-journal.png'
+duration 4
+file '07-employer-settings.png'
+duration 4
+file '08-employee-clock.png'
+duration 4
+file '09-employee-history.png'
+duration 4
+file '10-employee-settings-notifications.png'
+duration 4
+file '11-kiosk-borne.png'
+duration 4
+file '11-kiosk-borne.png'
