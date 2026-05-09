@@ -22,8 +22,16 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# edit .env — set JWT_SECRET, PUBLIC_APP_URL for WA links
+# edit .env — set JWT_SECRET, PUBLIC_APP_URL for WA links, and CORS_ALLOWED_ORIGINS for split frontend/backend dev
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Backend smoke tests:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 
 **Frontend** (from `frontend/`):
@@ -108,6 +116,7 @@ Use a project `.env` (Compose reads it from the repo root) for secrets and URLs,
 - `JWT_SECRET`, `WHATSAPP_BRIDGE_SECRET`
 - `NPM_PROXY_NETWORK`, `NPM_APP_NETWORK` — when using **Nginx Proxy Manager**, set these to match Docker network names (see [`compose.env.example`](compose.env.example)) and deploy with `./deploy.sh`
 - `PUBLIC_APP_URL` — must be the browser-reachable base URL used in `/attend/...` links (e.g. `http://localhost:8000` when using compose)
+- `CORS_ALLOWED_ORIGINS` — comma-separated browser origins allowed to call the API when the frontend is served from a different origin (defaults to Vite dev origins; use `*` only when browser credentials are not needed)
 - `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_FILE` — optional; required for **native push** to Android/iOS apps (Firebase HTTP v1). Point `FCM_SERVICE_ACCOUNT_FILE` at the service account JSON path inside the container (e.g. mount a read-only volume). Set these on both **`api`** and **`worker`** if you use Compose — reminders run in the worker.
 - `SMTP_*` — optional; required to send attendance links or verification codes by email
 - `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` — match the MinIO service defaults or your overrides
@@ -140,7 +149,7 @@ Push notifications use the same attendance reminder pipeline as email/WhatsApp; 
 
 ## Design reference
 
-UI tokens align with [`/root/stitch_geofenced_whatsapp_attendance_sync/ivorian_tech_excellence/DESIGN.md`](/root/stitch_geofenced_whatsapp_attendance_sync/ivorian_tech_excellence/DESIGN.md).
+UI tokens live in [`frontend/tailwind.config.js`](frontend/tailwind.config.js); product flows are implemented under [`frontend/src/pages`](frontend/src/pages).
 
 ## Créer le dépôt GitHub et pousser
 

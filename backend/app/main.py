@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -29,6 +30,10 @@ from app.routers import (
 from app.services.object_storage import ensure_minio_bucket
 
 
+logger = logging.getLogger(__name__)
+_settings = get_settings()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -38,7 +43,7 @@ async def lifespan(app: FastAPI):
     try:
         ensure_minio_bucket()
     except Exception:
-        pass
+        logger.exception("MinIO bucket initialization failed; punch photo uploads may fail")
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     if os.getenv("DEMO_SEED", "").lower() in ("1", "true", "yes"):
         from app.seed import seed_demo
@@ -54,10 +59,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Geofence Attendance API", version="0.1.0", lifespan=lifespan)
+_cors_origins = _settings.cors_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials="*" not in _cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -77,7 +83,6 @@ app.include_router(employee_push.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(whatsapp_admin.router, prefix="/api")
 
-_settings = get_settings()
 Path(_settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_settings.upload_dir), name="uploads")
 
