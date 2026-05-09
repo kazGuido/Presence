@@ -128,7 +128,7 @@ The API and worker containers set `DATABASE_URL=postgresql+psycopg://...@db:5432
 ## Attendance policy and exports
 
 - Geofence checks are **warning-only**: out-of-zone punches are recorded with `within_geofence=false` and `geofence_review_status=pending` so supervisors can review/approve/reject rather than losing attendance evidence.
-- Employer review API: `GET /api/punches/geofence-review?status=pending` and `PATCH /api/punches/{punch_id}/geofence-review`.
+- Employer review UI: **Employer portal → Reviews**. API: `GET /api/punches/geofence-review?status=pending` and `PATCH /api/punches/{punch_id}/geofence-review`.
 - Daily attendance export: `GET /api/analytics/attendance/export`.
 - Punch-level export: `GET /api/analytics/punches/export` includes coordinates, geofence status, review fields, source, and photo flags.
 

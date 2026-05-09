@@ -173,6 +173,7 @@ class PunchCreate(BaseModel):
 
 class PunchOut(BaseModel):
     id: str
+    employee_id: str
     kind: str
     at: datetime
     lat: float

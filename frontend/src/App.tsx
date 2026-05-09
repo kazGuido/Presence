@@ -18,6 +18,7 @@ import { EmployerLogin, EmployerRegister } from './pages/EmployerAuth';
 import {
   EmployerDashboard,
   EmployerEmployees,
+  EmployerGeofenceReview,
   EmployerSchedules,
   EmployerShell,
   EmployerSites,
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/employer" element={<EmployerShell />}>
           <Route index element={<EmployerDashboard />} />
           <Route path="welcome" element={<EmployerWelcome />} />
+          <Route path="geofence-review" element={<EmployerGeofenceReview />} />
           <Route path="sites" element={<EmployerSites />} />
           <Route path="schedules" element={<EmployerSchedules />} />
           <Route path="employees" element={<EmployerEmployees />} />
