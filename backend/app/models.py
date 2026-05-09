@@ -236,6 +236,25 @@ class EmployeePushDevice(Base):
     )
 
 
+class EmployeeNotification(Base):
+    """In-app notifications shown inside the employee portal."""
+
+    __tablename__ = "employee_notifications"
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=_uuid)
+    company_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("companies.id"), nullable=False, index=True)
+    employee_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("employees.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False, default="info")
+    entity_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

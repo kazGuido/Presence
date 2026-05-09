@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.deps import get_current_employee
 from app.models import Employee, EmployeePushDevice
+from app.services.audit_log import write_audit
 
 router = APIRouter(prefix="/employee/push", tags=["employee-push"])
 
@@ -37,6 +38,16 @@ def register_device(
             existing.platform = body.platform
             existing.last_seen_at = now
             db.add(existing)
+            write_audit(
+                db,
+                company_id=employee.company_id,
+                actor_type="employee",
+                actor_id=employee.id,
+                action="employee.push_device.refresh",
+                entity_type="employee_push_device",
+                entity_id=existing.id,
+                meta={"platform": body.platform},
+            )
             db.commit()
             return
     row = EmployeePushDevice(
@@ -46,6 +57,17 @@ def register_device(
         last_seen_at=now,
     )
     db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        company_id=employee.company_id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="employee.push_device.register",
+        entity_type="employee_push_device",
+        entity_id=row.id,
+        meta={"platform": body.platform},
+    )
     db.commit()
 
 
@@ -65,5 +87,15 @@ def unregister_device(
     )
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Token not found")
+    write_audit(
+        db,
+        company_id=employee.company_id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="employee.push_device.unregister",
+        entity_type="employee_push_device",
+        entity_id=row.id,
+        meta={"platform": row.platform},
+    )
     db.delete(row)
     db.commit()

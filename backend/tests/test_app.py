@@ -163,6 +163,7 @@ def test_employer_can_review_geofence_warning_and_audit_it(monkeypatch, tmp_path
             AuditEvent,
             Company,
             Employee,
+            EmployeeNotification,
             EmployerUser,
             GeofenceReviewStatus,
             Punch,
@@ -238,11 +239,40 @@ def test_employer_can_review_geofence_warning_and_audit_it(monkeypatch, tmp_path
                 .filter(AuditEvent.action == "punch.geofence_review", AuditEvent.entity_id == punch_id)
                 .one()
             )
+            notification = (
+                db.query(EmployeeNotification)
+                .filter(EmployeeNotification.entity_type == "punch", EmployeeNotification.entity_id == punch_id)
+                .one()
+            )
+            employee_token = create_access_token(
+                {
+                    "sub": punch.employee_id,
+                    "typ": "employee",
+                    "company_id": company.id,
+                    "employee_id": punch.employee_id,
+                }
+            )
+            notification_id = notification.id
             assert punch.geofence_review_status == GeofenceReviewStatus.approved
             assert audit.meta["previous_status"] == "pending"
             assert audit.meta["new_status"] == "approved"
+            assert notification.kind == "geofence_review"
         finally:
             db.close()
+
+        notifications_response = client.get(
+            "/api/employee/notifications",
+            headers={"Authorization": f"Bearer {employee_token}"},
+        )
+        assert notifications_response.status_code == 200
+        assert [row["id"] for row in notifications_response.json()] == [notification_id]
+
+        read_response = client.post(
+            f"/api/employee/notifications/{notification_id}/read",
+            headers={"Authorization": f"Bearer {employee_token}"},
+        )
+        assert read_response.status_code == 200
+        assert read_response.json()["read_at"] is not None
 
 
 def test_punch_level_export_includes_geofence_review_fields(monkeypatch, tmp_path):

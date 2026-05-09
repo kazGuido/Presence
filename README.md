@@ -34,6 +34,15 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
+Database migrations:
+
+```bash
+cd backend
+alembic upgrade head
+# For an older database that already matches the current schema:
+# alembic stamp head
+```
+
 **Frontend** (from `frontend/`):
 
 ```bash
@@ -45,6 +54,8 @@ npm run dev
 Vite proxies `/api` to `http://127.0.0.1:8000`.
 
 With **`DEMO_SEED=1`** (see Compose / `.env`), first startup seeds **demo-corp**: employer `boss@example.com` / `demo-demo`, multiple employees (PIN **1234**), two work sites, and **past punch history** for analytics — only when that company still has **zero** punches (so existing databases are not overwritten).
+
+For recording or sales walkthroughs, use [`docs/demo-runbook.md`](docs/demo-runbook.md).
 
 ## Production (single process)
 
@@ -76,7 +87,7 @@ See **Production behind Nginx Proxy Manager** below. [`compose.env.example`](com
 Services:
 
 - **api** — FastAPI + built UI (port **8000**)
-- **worker** — ARQ cron (every 5 minutes) for pre-shift attendance links; uses the same PostgreSQL DB and Redis as the API
+- **worker** — ARQ cron (every 5 minutes) for pre-shift attendance links; starts after the API is healthy and uses the same PostgreSQL DB and Redis as the API
 - **db** — PostgreSQL backing store for shared SaaS or dedicated hosted deployments
 - **redis** — verification codes for employee email/WhatsApp confirmation + ARQ broker
 - **minio** — object storage for punch photos when configured (API also ensures the bucket exists)
@@ -123,12 +134,13 @@ Use a project `.env` (Compose reads it from the repo root) for secrets and URLs,
 - `SMTP_*` — optional; required to send attendance links or verification codes by email
 - `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` — match the MinIO service defaults or your overrides
 
-The API and worker containers set `DATABASE_URL=postgresql+psycopg://...@db:5432/...` and store punch photos in MinIO when configured. Local uploads still persist on the `api_uploads` volume for non-MinIO fallback.
+The API container runs `alembic upgrade head` before starting, then the worker waits for API health. API and worker set `DATABASE_URL=postgresql+psycopg://...@db:5432/...` and store punch photos in MinIO when configured. Local uploads still persist on the `api_uploads` volume for non-MinIO fallback.
 
 ## Attendance policy and exports
 
 - Geofence checks are **warning-only**: out-of-zone punches are recorded with `within_geofence=false` and `geofence_review_status=pending` so supervisors can review/approve/reject rather than losing attendance evidence.
 - Employer review UI: **Employer portal → Reviews**. API: `GET /api/punches/geofence-review?status=pending` and `PATCH /api/punches/{punch_id}/geofence-review`.
+- Employees receive in-app notifications under **Employee portal → Settings** when supervisors approve/reject geofence warnings.
 - Daily attendance export: `GET /api/analytics/attendance/export`.
 - Punch-level export: `GET /api/analytics/punches/export` includes coordinates, geofence status, review fields, source, and photo flags.
 

@@ -14,6 +14,7 @@ from app.models import Company, Employee, EmployerUser, GeofenceReviewStatus, Pu
 from app.schemas import GeofenceReviewUpdate, PunchCreate, PunchOut, PunchStateOut
 from app.services.audit_log import write_audit
 from app.services.geofence import within_radius
+from app.services.in_app_notifications import create_employee_notification
 from app.services.object_storage import parse_minio_ref, presigned_get_url
 from app.services.punch_logic import next_required_kind, punches_for_local_day, today_local_date
 from app.services.schedule_nudge import clock_in_reminder_fields
@@ -278,6 +279,20 @@ def review_geofence_punch(
     punch.geofence_review_note = body.note.strip() if body.note else None
     punch.geofence_reviewed_by = employer.id
     punch.geofence_reviewed_at = datetime.now(timezone.utc)
+    create_employee_notification(
+        db,
+        company_id=company.id,
+        employee_id=punch.employee_id,
+        title="Revue de pointage terminée",
+        body=(
+            "Votre pointage hors zone a été approuvé par un superviseur."
+            if punch.geofence_review_status == GeofenceReviewStatus.approved
+            else "Votre pointage hors zone a été rejeté par un superviseur."
+        ),
+        kind="geofence_review",
+        entity_type="punch",
+        entity_id=punch.id,
+    )
     write_audit(
         db,
         company_id=company.id,

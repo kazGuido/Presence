@@ -14,6 +14,7 @@ from app.models import (
     Employee,
     EmployeeScheduleAssignment,
     EmployerUser,
+    GeofenceReviewStatus,
     Punch,
     PunchKind,
     PunchSource,
@@ -124,9 +125,12 @@ def seed_demo(db: Session) -> None:
                 default_work_site_id=sites_for_default[i % len(sites_for_default)].id,
                 email_verified_at=verified,
                 whatsapp_verified_at=verified,
+                can_show_controller_ui=i == 0,
             )
             db.add(emp)
             db.flush()
+        elif i == 0 and not emp.can_show_controller_ui:
+            emp.can_show_controller_ui = True
         employee_rows.append(emp)
 
     sched_id = sched.id
@@ -259,6 +263,7 @@ def _seed_demo_punches_if_empty(
                     within_geofence=not out_of_zone,
                     photo_only_attestation=False,
                     source=PunchSource.app,
+                    geofence_review_status=GeofenceReviewStatus.pending if out_of_zone else None,
                 )
             )
 

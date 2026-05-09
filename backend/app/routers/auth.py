@@ -83,11 +83,41 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
     return TokenOut(access_token=token)
 
 
+def _request_meta(request: Request) -> dict[str, str | None]:
+    return {
+        "ip": request.client.host if request.client else None,
+        "user_agent": request.headers.get("user-agent"),
+    }
+
+
 @router.post("/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> TokenOut:
     user = db.query(EmployerUser).filter(EmployerUser.email == str(body.email).lower()).first()
     if not user or not verify_password(body.password, user.password_hash):
+        if user:
+            write_audit(
+                db,
+                company_id=user.company_id,
+                actor_type="employer",
+                actor_id=user.id,
+                action="auth.login_failed",
+                entity_type="employer",
+                entity_id=user.id,
+                meta=_request_meta(request),
+            )
+            db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+    write_audit(
+        db,
+        company_id=user.company_id,
+        actor_type="employer",
+        actor_id=user.id,
+        action="auth.login",
+        entity_type="employer",
+        entity_id=user.id,
+        meta=_request_meta(request),
+    )
+    db.commit()
     token = create_access_token(
         {"sub": user.id, "typ": "employer", "company_id": user.company_id, "email": user.email}
     )
@@ -95,7 +125,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
 
 
 @router.post("/employee-login", response_model=TokenOut)
-def employee_login(body: EmployeeLoginIn, db: Session = Depends(get_db)) -> TokenOut:
+def employee_login(body: EmployeeLoginIn, request: Request, db: Session = Depends(get_db)) -> TokenOut:
     company = db.query(Company).filter(Company.slug == body.company_slug.strip().lower()).first()
     if not company:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid company or credentials")
@@ -103,7 +133,29 @@ def employee_login(body: EmployeeLoginIn, db: Session = Depends(get_db)) -> Toke
     if not emp or emp.company_id != company.id or not emp.active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid company or credentials")
     if not verify_password(body.pin, emp.pin_hash):
+        write_audit(
+            db,
+            company_id=company.id,
+            actor_type="employee",
+            actor_id=emp.id,
+            action="auth.employee_login_failed",
+            entity_type="employee",
+            entity_id=emp.id,
+            meta=_request_meta(request),
+        )
+        db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid company or credentials")
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=emp.id,
+        action="auth.employee_login",
+        entity_type="employee",
+        entity_id=emp.id,
+        meta=_request_meta(request),
+    )
+    db.commit()
     token = create_access_token(
         {
             "sub": emp.id,
@@ -116,7 +168,11 @@ def employee_login(body: EmployeeLoginIn, db: Session = Depends(get_db)) -> Toke
 
 
 @router.post("/employee-magic/consume", response_model=TokenOut)
-def employee_magic_consume(body: EmployeeMagicConsumeIn, db: Session = Depends(get_db)) -> TokenOut:
+def employee_magic_consume(
+    body: EmployeeMagicConsumeIn,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> TokenOut:
     try:
         payload = verify_magic_token_and_consume(body.token.strip())
     except ValueError as e:
@@ -126,6 +182,17 @@ def employee_magic_consume(body: EmployeeMagicConsumeIn, db: Session = Depends(g
     emp = db.get(Employee, eid)
     if not emp or not emp.active or emp.company_id != cid:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid employee")
+    write_audit(
+        db,
+        company_id=emp.company_id,
+        actor_type="employee",
+        actor_id=emp.id,
+        action="auth.employee_magic_login",
+        entity_type="employee",
+        entity_id=emp.id,
+        meta=_request_meta(request),
+    )
+    db.commit()
     token = create_access_token(
         {
             "sub": emp.id,

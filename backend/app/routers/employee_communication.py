@@ -12,6 +12,7 @@ from app.services.redis_client import get_redis
 from app.services.smtp_email import send_plain_email, smtp_configured
 from app.services.verification_codes import issue_code, verify_code
 from app.core.config import get_settings
+from app.services.audit_log import write_audit
 from app.services.whatsapp_bridge import send_whatsapp_text
 
 router = APIRouter(prefix="/employee/communication", tags=["employee-communication"])
@@ -89,6 +90,21 @@ def update_communication(
             employee.email = body.email
             employee.email_verified_at = None
     db.add(employee)
+    write_audit(
+        db,
+        company_id=employee.company_id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="employee.communication.update",
+        entity_type="employee",
+        entity_id=employee.id,
+        meta={
+            "notify_email": body.notify_email,
+            "notify_whatsapp": body.notify_whatsapp,
+            "notify_push": body.notify_push,
+            "email_changed": body.email is not None,
+        },
+    )
     db.commit()
     db.refresh(employee)
     return _out(employee)
@@ -112,6 +128,17 @@ def request_verify(
             "Code de vérification",
             f"Votre code de vérification: {code}\n\nCe code expire dans 15 minutes.",
         )
+        write_audit(
+            db,
+            company_id=employee.company_id,
+            actor_type="employee",
+            actor_id=employee.id,
+            action="employee.verification.request",
+            entity_type="employee",
+            entity_id=employee.id,
+            meta={"channel": "email"},
+        )
+        db.commit()
         return {"ok": True, "channel": "email"}
     if not employee.phone_e164:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No phone on file")
@@ -124,6 +151,17 @@ def request_verify(
         f"Votre code de vérification: {code} (valide 15 minutes).",
         company_id=employee.company_id,
     )
+    write_audit(
+        db,
+        company_id=employee.company_id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="employee.verification.request",
+        entity_type="employee",
+        entity_id=employee.id,
+        meta={"channel": "whatsapp"},
+    )
+    db.commit()
     return {"ok": True, "channel": "whatsapp"}
 
 
@@ -142,6 +180,16 @@ def confirm_verify(
     else:
         employee.whatsapp_verified_at = now
     db.add(employee)
+    write_audit(
+        db,
+        company_id=employee.company_id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="employee.verification.confirm",
+        entity_type="employee",
+        entity_id=employee.id,
+        meta={"channel": body.channel},
+    )
     db.commit()
     db.refresh(employee)
     return _out(employee)
