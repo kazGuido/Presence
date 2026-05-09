@@ -1,5 +1,8 @@
 import importlib
+import csv
+import io
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -76,3 +79,242 @@ def test_spa_reports_missing_frontend_build(monkeypatch, tmp_path):
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Frontend not built (missing static/)"}
+
+
+def test_database_parent_creation_skips_postgres_urls(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    app_module._ensure_database_parent("postgresql+psycopg://presence:secret@db:5432/presence")
+    sqlite_path = tmp_path / "nested" / "app.db"
+    app_module._ensure_database_parent(f"sqlite:///{sqlite_path}")
+
+    assert sqlite_path.parent.is_dir()
+    assert not (tmp_path / "postgresql+psycopg:").exists()
+
+
+def test_attendance_session_out_of_zone_completes_with_review_warning(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    with TestClient(app_module.app) as client:
+        from app.core.database import SessionLocal
+        from app.models import (
+            AttendanceSession,
+            AuditEvent,
+            Company,
+            Employee,
+            GeofenceReviewStatus,
+            Punch,
+            WorkSite,
+        )
+        from app.services.attendance_sessions_core import create_attendance_session
+
+        db = SessionLocal()
+        try:
+            company = Company(name="Acme", slug="acme")
+            db.add(company)
+            db.flush()
+            site = WorkSite(company_id=company.id, name="HQ", lat=0.0, lng=0.0, radius_m=10.0)
+            employee = Employee(company_id=company.id, display_name="Ada", pin_hash="unused")
+            db.add_all([site, employee])
+            db.flush()
+            session, raw_token = create_attendance_session(
+                db,
+                company_id=company.id,
+                employee_id=employee.id,
+                work_site_id=site.id,
+            )
+            session_id = session.id
+            db.commit()
+        finally:
+            db.close()
+
+        response = client.post(
+            f"/api/attendance-sessions/by-token/{raw_token}/complete",
+            data={"lat": "1.0", "lng": "1.0"},
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["ok"] is True
+        assert body["geofence_warning"] is True
+        assert body["review_status"] == "pending"
+
+        db = SessionLocal()
+        try:
+            punch = db.get(Punch, body["punch_id"])
+            completed_session = db.get(AttendanceSession, session_id)
+            audit = db.query(AuditEvent).filter(AuditEvent.entity_id == punch.id).one()
+            assert punch.within_geofence is False
+            assert punch.geofence_review_status == GeofenceReviewStatus.pending
+            assert completed_session.completed_punch_id == punch.id
+            assert audit.action == "attendance_session.complete"
+            assert audit.meta["within_geofence"] is False
+        finally:
+            db.close()
+
+
+def test_employer_can_review_geofence_warning_and_audit_it(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    with TestClient(app_module.app) as client:
+        from app.core.database import SessionLocal
+        from app.core.security import create_access_token
+        from app.models import (
+            AuditEvent,
+            Company,
+            Employee,
+            EmployerUser,
+            GeofenceReviewStatus,
+            Punch,
+            PunchKind,
+            PunchSource,
+            WorkSite,
+        )
+
+        db = SessionLocal()
+        try:
+            company = Company(name="Acme", slug="acme")
+            db.add(company)
+            db.flush()
+            employer = EmployerUser(
+                company_id=company.id,
+                email="boss@example.com",
+                password_hash="unused",
+                name="Boss",
+            )
+            site = WorkSite(company_id=company.id, name="HQ", lat=0.0, lng=0.0, radius_m=10.0)
+            employee = Employee(company_id=company.id, display_name="Ada", pin_hash="unused")
+            db.add_all([employer, site, employee])
+            db.flush()
+            punch = Punch(
+                company_id=company.id,
+                employee_id=employee.id,
+                kind=PunchKind.punch_in,
+                at=datetime.now(timezone.utc),
+                lat=1.0,
+                lng=1.0,
+                work_site_id=site.id,
+                distance_m=157000,
+                within_geofence=False,
+                source=PunchSource.app,
+                geofence_review_status=GeofenceReviewStatus.pending,
+            )
+            db.add(punch)
+            db.commit()
+            token = create_access_token(
+                {
+                    "sub": employer.id,
+                    "typ": "employer",
+                    "company_id": company.id,
+                    "email": employer.email,
+                }
+            )
+            punch_id = punch.id
+        finally:
+            db.close()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        list_response = client.get("/api/punches/geofence-review", headers=headers)
+        assert list_response.status_code == 200
+        assert [row["id"] for row in list_response.json()] == [punch_id]
+
+        review_response = client.patch(
+            f"/api/punches/{punch_id}/geofence-review",
+            headers=headers,
+            json={"status": "approved", "note": "Supervisor accepted the exception."},
+        )
+        assert review_response.status_code == 200
+        reviewed = review_response.json()
+        assert reviewed["geofence_review_status"] == "approved"
+        assert reviewed["geofence_review_note"] == "Supervisor accepted the exception."
+        assert reviewed["geofence_reviewed_by"] is not None
+        assert reviewed["geofence_reviewed_at"] is not None
+
+        db = SessionLocal()
+        try:
+            punch = db.get(Punch, punch_id)
+            audit = (
+                db.query(AuditEvent)
+                .filter(AuditEvent.action == "punch.geofence_review", AuditEvent.entity_id == punch_id)
+                .one()
+            )
+            assert punch.geofence_review_status == GeofenceReviewStatus.approved
+            assert audit.meta["previous_status"] == "pending"
+            assert audit.meta["new_status"] == "approved"
+        finally:
+            db.close()
+
+
+def test_punch_level_export_includes_geofence_review_fields(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    with TestClient(app_module.app) as client:
+        from app.core.database import SessionLocal
+        from app.core.security import create_access_token
+        from app.models import (
+            Company,
+            Employee,
+            EmployerUser,
+            GeofenceReviewStatus,
+            Punch,
+            PunchKind,
+            PunchSource,
+            WorkSite,
+        )
+
+        db = SessionLocal()
+        try:
+            company = Company(name="Acme", slug="acme")
+            db.add(company)
+            db.flush()
+            employer = EmployerUser(
+                company_id=company.id,
+                email="boss@example.com",
+                password_hash="unused",
+                name="Boss",
+            )
+            site = WorkSite(company_id=company.id, name="HQ", lat=0.0, lng=0.0, radius_m=10.0)
+            employee = Employee(company_id=company.id, display_name="Ada", pin_hash="unused")
+            db.add_all([employer, site, employee])
+            db.flush()
+            punch = Punch(
+                company_id=company.id,
+                employee_id=employee.id,
+                kind=PunchKind.punch_in,
+                at=datetime(2026, 5, 9, 8, 0, tzinfo=timezone.utc),
+                lat=1.0,
+                lng=1.0,
+                work_site_id=site.id,
+                distance_m=157000,
+                within_geofence=False,
+                source=PunchSource.whatsapp_link,
+                geofence_review_status=GeofenceReviewStatus.pending,
+                photo_only_attestation=False,
+                photo_path="minio:attendance/example.jpg",
+            )
+            db.add(punch)
+            db.commit()
+            token = create_access_token(
+                {
+                    "sub": employer.id,
+                    "typ": "employer",
+                    "company_id": company.id,
+                    "email": employer.email,
+                }
+            )
+        finally:
+            db.close()
+
+        response = client.get(
+            "/api/analytics/punches/export?from=2026-05-09&to=2026-05-09",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    rows = list(csv.DictReader(io.StringIO(response.text)))
+    assert len(rows) == 1
+    assert rows[0]["employee_name"] == "Ada"
+    assert rows[0]["within_geofence"] == "false"
+    assert rows[0]["geofence_review_status"] == "pending"
+    assert rows[0]["source"] == "whatsapp_link"
+    assert rows[0]["has_photo"] == "true"

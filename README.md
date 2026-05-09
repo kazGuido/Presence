@@ -2,7 +2,7 @@
 
 Employer portal (company, employees, work sites, schedules), employee punch in/out with geofence + optional photo, attendance analytics, and WhatsApp validation deep links via a **Baileys** HTTP bridge.
 
-**Stack**: FastAPI + SQLite (backend), Vite + React + TypeScript + Tailwind (frontend), Redis + ARQ worker (scheduled reminders), MinIO (optional punch photos), SMTP (optional email), Node bridge for WhatsApp (Baileys).
+**Stack**: FastAPI + SQLAlchemy with SQLite for local dev and PostgreSQL for Compose production, Vite + React + TypeScript + Tailwind (frontend), Redis + ARQ worker (scheduled reminders), MinIO (optional punch photos), SMTP (optional email), Node bridge for WhatsApp (Baileys).
 
 ## Clone
 
@@ -76,7 +76,8 @@ See **Production behind Nginx Proxy Manager** below. [`compose.env.example`](com
 Services:
 
 - **api** — FastAPI + built UI (port **8000**)
-- **worker** — ARQ cron (every 5 minutes) for pre-shift attendance links; uses the same SQLite DB and Redis as the API
+- **worker** — ARQ cron (every 5 minutes) for pre-shift attendance links; uses the same PostgreSQL DB and Redis as the API
+- **db** — PostgreSQL backing store for shared SaaS or dedicated hosted deployments
 - **redis** — verification codes for employee email/WhatsApp confirmation + ARQ broker
 - **minio** — object storage for punch photos when configured (API also ensures the bucket exists)
 - **whatsapp-bridge** — Baileys HTTP API (port **3005**). **One WhatsApp session per company** (`/t/<company-uuid>/…`); data under `WHATSAPP_DATA_DIR/tenants/<uuid>/`. Employer **Settings → WhatsApp** uses the logged-in company only. Outbound sends use each employee’s `company_id`.
@@ -114,6 +115,7 @@ Expect `{"status":"ok"}`. A few seconds of 502 during `up --build` is normal whi
 Use a project `.env` (Compose reads it from the repo root) for secrets and URLs, for example:
 
 - `JWT_SECRET`, `WHATSAPP_BRIDGE_SECRET`
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — Compose uses PostgreSQL by default; local backend development can still use SQLite via `backend/.env`
 - `NPM_PROXY_NETWORK`, `NPM_APP_NETWORK` — when using **Nginx Proxy Manager**, set these to match Docker network names (see [`compose.env.example`](compose.env.example)) and deploy with `./deploy.sh`
 - `PUBLIC_APP_URL` — must be the browser-reachable base URL used in `/attend/...` links (e.g. `http://localhost:8000` when using compose)
 - `CORS_ALLOWED_ORIGINS` — comma-separated browser origins allowed to call the API when the frontend is served from a different origin (defaults to Vite dev origins; use `*` only when browser credentials are not needed)
@@ -121,7 +123,14 @@ Use a project `.env` (Compose reads it from the repo root) for secrets and URLs,
 - `SMTP_*` — optional; required to send attendance links or verification codes by email
 - `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` — match the MinIO service defaults or your overrides
 
-The API container sets `DATABASE_URL=sqlite:////app/data/app.db` and `UPLOAD_DIR=/app/uploads` so the DB and uploads persist on named volumes.
+The API and worker containers set `DATABASE_URL=postgresql+psycopg://...@db:5432/...` and store punch photos in MinIO when configured. Local uploads still persist on the `api_uploads` volume for non-MinIO fallback.
+
+## Attendance policy and exports
+
+- Geofence checks are **warning-only**: out-of-zone punches are recorded with `within_geofence=false` and `geofence_review_status=pending` so supervisors can review/approve/reject rather than losing attendance evidence.
+- Employer review API: `GET /api/punches/geofence-review?status=pending` and `PATCH /api/punches/{punch_id}/geofence-review`.
+- Daily attendance export: `GET /api/analytics/attendance/export`.
+- Punch-level export: `GET /api/analytics/punches/export` includes coordinates, geofence status, review fields, source, and photo flags.
 
 ## Mobile app (Capacitor / Android)
 

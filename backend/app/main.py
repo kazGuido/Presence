@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.engine import make_url
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
@@ -34,10 +35,17 @@ logger = logging.getLogger(__name__)
 _settings = get_settings()
 
 
+def _ensure_database_parent(database_url: str) -> None:
+    url = make_url(database_url)
+    if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
+        return
+    Path(url.database).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    Path(settings.database_url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
+    _ensure_database_parent(settings.database_url)
     Base.metadata.create_all(bind=engine)
     apply_sqlite_migrations(engine)
     try:

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -9,9 +9,10 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.deps import get_current_employee, get_employee_company
-from app.models import Company, Employee, Punch, PunchKind, PunchSource, WorkSite
-from app.schemas import PunchCreate, PunchOut, PunchStateOut
+from app.deps import get_current_company, get_current_employee, get_current_employer, get_employee_company
+from app.models import Company, Employee, EmployerUser, GeofenceReviewStatus, Punch, PunchKind, PunchSource, WorkSite
+from app.schemas import GeofenceReviewUpdate, PunchCreate, PunchOut, PunchStateOut
+from app.services.audit_log import write_audit
 from app.services.geofence import within_radius
 from app.services.object_storage import parse_minio_ref, presigned_get_url
 from app.services.punch_logic import next_required_kind, punches_for_local_day, today_local_date
@@ -130,8 +131,31 @@ async def create_my_punch(
         photo_only_attestation=photo_only,
         photo_path=photo_path,
         source=PunchSource.app,
+        geofence_review_status=None
+        if ok and not photo_only
+        else GeofenceReviewStatus.pending,
     )
     db.add(punch)
+    db.flush()
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="punch.create",
+        entity_type="punch",
+        entity_id=punch.id,
+        meta={
+            "kind": pk.value,
+            "source": PunchSource.app.value,
+            "within_geofence": punch.within_geofence,
+            "distance_m": dist,
+            "photo_only_attestation": photo_only,
+            "geofence_review_status": punch.geofence_review_status.value
+            if punch.geofence_review_status
+            else None,
+        },
+    )
     db.commit()
     db.refresh(punch)
     return punch
@@ -186,8 +210,90 @@ def create_my_punch_json(
         within_geofence=ok,
         photo_path=None,
         source=PunchSource.app,
+        geofence_review_status=None if ok else GeofenceReviewStatus.pending,
     )
     db.add(punch)
+    db.flush()
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=employee.id,
+        action="punch.create",
+        entity_type="punch",
+        entity_id=punch.id,
+        meta={
+            "kind": pk.value,
+            "source": PunchSource.app.value,
+            "within_geofence": ok,
+            "distance_m": dist,
+            "photo_only_attestation": False,
+            "geofence_review_status": punch.geofence_review_status.value
+            if punch.geofence_review_status
+            else None,
+        },
+    )
+    db.commit()
+    db.refresh(punch)
+    return punch
+
+
+@router.get("/geofence-review", response_model=list[PunchOut])
+def list_geofence_review_punches(
+    company: Annotated[Company, Depends(get_current_company)],
+    db: Session = Depends(get_db),
+    review_status: Literal["pending", "approved", "rejected", "all"] = Query(
+        "pending", alias="status"
+    ),
+    date_from: datetime | None = Query(None, alias="from"),
+    date_to: datetime | None = Query(None, alias="to"),
+    limit: int = 100,
+) -> list[Punch]:
+    q = db.query(Punch).filter(Punch.company_id == company.id, Punch.within_geofence.is_(False))
+    if review_status != "all":
+        q = q.filter(Punch.geofence_review_status == GeofenceReviewStatus(review_status))
+    if date_from is not None:
+        q = q.filter(Punch.at >= date_from)
+    if date_to is not None:
+        q = q.filter(Punch.at <= date_to)
+    return q.order_by(Punch.at.desc()).limit(min(limit, 500)).all()
+
+
+@router.patch("/{punch_id}/geofence-review", response_model=PunchOut)
+def review_geofence_punch(
+    punch_id: str,
+    body: GeofenceReviewUpdate,
+    company: Annotated[Company, Depends(get_current_company)],
+    employer: Annotated[EmployerUser, Depends(get_current_employer)],
+    db: Session = Depends(get_db),
+) -> Punch:
+    punch = db.get(Punch, punch_id)
+    if not punch or punch.company_id != company.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Punch not found")
+    if punch.within_geofence:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Punch does not require geofence review")
+
+    previous_status = punch.geofence_review_status.value if punch.geofence_review_status else None
+    punch.geofence_review_status = GeofenceReviewStatus(body.status)
+    punch.geofence_review_note = body.note.strip() if body.note else None
+    punch.geofence_reviewed_by = employer.id
+    punch.geofence_reviewed_at = datetime.now(timezone.utc)
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employer",
+        actor_id=employer.id,
+        action="punch.geofence_review",
+        entity_type="punch",
+        entity_id=punch.id,
+        meta={
+            "previous_status": previous_status,
+            "new_status": punch.geofence_review_status.value,
+            "note": punch.geofence_review_note,
+            "within_geofence": punch.within_geofence,
+            "distance_m": punch.distance_m,
+        },
+    )
     db.commit()
     db.refresh(punch)
     return punch

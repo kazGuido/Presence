@@ -52,6 +52,14 @@ def apply_sqlite_migrations(engine: Engine) -> None:
         pstmts: list[str] = []
         if "photo_only_attestation" not in pcols:
             pstmts.append("ALTER TABLE punches ADD COLUMN photo_only_attestation BOOLEAN DEFAULT 0")
+        if "geofence_review_status" not in pcols:
+            pstmts.append("ALTER TABLE punches ADD COLUMN geofence_review_status VARCHAR(32)")
+        if "geofence_review_note" not in pcols:
+            pstmts.append("ALTER TABLE punches ADD COLUMN geofence_review_note TEXT")
+        if "geofence_reviewed_by" not in pcols:
+            pstmts.append("ALTER TABLE punches ADD COLUMN geofence_reviewed_by CHAR(36)")
+        if "geofence_reviewed_at" not in pcols:
+            pstmts.append("ALTER TABLE punches ADD COLUMN geofence_reviewed_at DATETIME")
         if pstmts:
             with engine.begin() as conn:
                 for s in pstmts:

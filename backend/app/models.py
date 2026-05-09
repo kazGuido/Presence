@@ -38,6 +38,12 @@ class PunchSource(str, enum.Enum):
     controller_manual = "controller_manual"
 
 
+class GeofenceReviewStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class AttendanceSessionStatus(str, enum.Enum):
     pending = "pending"
     completed = "completed"
@@ -162,6 +168,16 @@ class Punch(Base):
     photo_only_attestation: Mapped[bool] = mapped_column(Boolean, default=False)
     photo_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     source: Mapped[PunchSource] = mapped_column(Enum(PunchSource), default=PunchSource.app)
+    geofence_review_status: Mapped[GeofenceReviewStatus | None] = mapped_column(
+        Enum(GeofenceReviewStatus), nullable=True
+    )
+    geofence_review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    geofence_reviewed_by: Mapped[str | None] = mapped_column(
+        CHAR(36), ForeignKey("employer_users.id"), nullable=True
+    )
+    geofence_reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ScheduledReminderSent(Base):

@@ -12,6 +12,7 @@ from app.models import (
     AttendanceSessionStatus,
     Company,
     Employee,
+    GeofenceReviewStatus,
     EmployerUser,
     Punch,
     PunchKind,
@@ -33,6 +34,12 @@ from app.services.uploads import save_optional_image
 from app.services.whatsapp_bridge import send_whatsapp_text
 
 router = APIRouter(prefix="/attendance-sessions", tags=["attendance-sessions"])
+
+
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 @router.get("", response_model=list[AttendanceSessionListOut])
@@ -179,7 +186,7 @@ def public_session_info(token: str, db: Session = Depends(get_db)) -> Attendance
     row = db.query(AttendanceSession).filter(AttendanceSession.token_hash == th).first()
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired link")
-    if row.expires_at < datetime.now(timezone.utc):
+    if _as_utc(row.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired link")
     emp = db.get(Employee, row.employee_id)
     site = db.get(WorkSite, row.work_site_id)
@@ -206,7 +213,7 @@ async def complete_session(
     row = db.query(AttendanceSession).filter(AttendanceSession.token_hash == th).first()
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired link")
-    if row.expires_at < datetime.now(timezone.utc):
+    if _as_utc(row.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired link")
     if row.status != AttendanceSessionStatus.pending:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Session already used")
@@ -216,11 +223,6 @@ async def complete_session(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Site missing")
 
     ok, dist = within_radius(lat, lng, site.lat, site.lng, site.radius_m)
-    if not ok:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail={"error": "out_of_zone", "distance_m": dist, "site_name": site.name},
-        )
 
     photo_path = save_optional_image(file)
     punch = Punch(
@@ -232,14 +234,33 @@ async def complete_session(
         lng=lng,
         work_site_id=site.id,
         distance_m=dist,
-        within_geofence=True,
+        within_geofence=ok,
         photo_path=photo_path,
         source=PunchSource.whatsapp_link,
+        geofence_review_status=None if ok else GeofenceReviewStatus.pending,
     )
     db.add(punch)
     db.flush()
     row.status = AttendanceSessionStatus.completed
     row.completed_punch_id = punch.id
+    write_audit(
+        db,
+        company_id=row.company_id,
+        actor_type="employee",
+        actor_id=row.employee_id,
+        action="attendance_session.complete",
+        entity_type="punch",
+        entity_id=punch.id,
+        meta={
+            "attendance_session_id": row.id,
+            "work_site_id": site.id,
+            "within_geofence": ok,
+            "distance_m": dist,
+            "geofence_review_status": punch.geofence_review_status.value
+            if punch.geofence_review_status
+            else None,
+        },
+    )
     db.commit()
     db.refresh(punch)
 
@@ -254,4 +275,11 @@ async def complete_session(
         except Exception:
             pass
 
-    return {"ok": True, "punch_id": punch.id, "at": punch.at.isoformat()}
+    return {
+        "ok": True,
+        "punch_id": punch.id,
+        "at": punch.at.isoformat(),
+        "geofence_warning": not ok,
+        "distance_m": dist,
+        "review_status": punch.geofence_review_status.value if punch.geofence_review_status else None,
+    }

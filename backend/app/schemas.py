@@ -183,9 +183,18 @@ class PunchOut(BaseModel):
     photo_only_attestation: bool = False
     photo_path: str | None
     source: str
+    geofence_review_status: str | None = None
+    geofence_review_note: str | None = None
+    geofence_reviewed_by: str | None = None
+    geofence_reviewed_at: datetime | None = None
 
     class Config:
         from_attributes = True
+
+
+class GeofenceReviewUpdate(BaseModel):
+    status: Literal["approved", "rejected"]
+    note: str | None = Field(default=None, max_length=1000)
 
 
 class PunchStateOut(BaseModel):
