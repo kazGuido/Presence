@@ -26,6 +26,13 @@ const features = [
   },
 ];
 
+const onboardingSteps = [
+  { icon: 'domain_add', titleKey: 'landing.flowCompanyTitle', bodyKey: 'landing.flowCompanyBody' },
+  { icon: 'pin_drop', titleKey: 'landing.flowSitesTitle', bodyKey: 'landing.flowSitesBody' },
+  { icon: 'group_add', titleKey: 'landing.flowTeamTitle', bodyKey: 'landing.flowTeamBody' },
+  { icon: 'task_alt', titleKey: 'landing.flowLaunchTitle', bodyKey: 'landing.flowLaunchBody' },
+];
+
 export function LandingPage() {
   const { t } = useTranslation();
 
@@ -57,7 +64,7 @@ export function LandingPage() {
               {t('landing.login')}
             </Link>
             <Link
-              to="/employer/register"
+              to="/onboarding/company"
               className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-on-primary shadow-lg shadow-primary/20 hover:opacity-95"
             >
               {t('landing.start')}
@@ -79,18 +86,18 @@ export function LandingPage() {
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
-                to="/employer/register"
+                to="/onboarding/company"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-4 text-base font-bold text-on-primary shadow-xl shadow-primary/20 hover:opacity-95"
               >
                 {t('landing.primaryCta')}
                 <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
               </Link>
-              <Link
-                to="/employer/login"
+              <a
+                href="#onboarding-flow"
                 className="inline-flex items-center justify-center rounded-2xl border border-outline/20 bg-white/75 px-6 py-4 text-base font-bold text-on-surface shadow-sm backdrop-blur hover:border-primary/30"
               >
                 {t('landing.secondaryCta')}
-              </Link>
+              </a>
             </div>
             <div className="mt-10 grid max-w-2xl grid-cols-3 gap-3">
               {metrics.map((metric) => (
@@ -169,6 +176,60 @@ export function LandingPage() {
               <p className="mt-3 leading-7 text-on-surface-variant">{t(feature.bodyKey)}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section id="onboarding-flow" className="border-y border-primary/10 bg-surface-container-low/50">
+        <div className="mx-auto max-w-7xl px-4 py-16 md:px-6">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-primary">{t('landing.flowKicker')}</p>
+              <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">{t('landing.flowTitle')}</h2>
+              <p className="mt-4 leading-7 text-on-surface-variant">{t('landing.flowBody')}</p>
+              <Link
+                to="/onboarding/company"
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-on-primary shadow-lg shadow-primary/20"
+              >
+                {t('landing.flowCta')}
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {onboardingSteps.map((step, index) => (
+                <article
+                  key={step.titleKey}
+                  className="rounded-3xl border border-outline/10 bg-surface-container-lowest p-5 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-container text-primary">
+                      <span className="material-symbols-outlined">{step.icon}</span>
+                    </span>
+                    <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-black text-on-surface-variant">
+                      {index + 1}/4
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold">{t(step.titleKey)}</h3>
+                  <p className="mt-2 text-sm leading-6 text-on-surface-variant">{t(step.bodyKey)}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 md:px-6">
+        <div className="rounded-[2rem] bg-primary p-6 text-on-primary shadow-xl shadow-primary/20 md:flex md:items-center md:justify-between md:p-8">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-white/70">{t('landing.finalKicker')}</p>
+            <h2 className="mt-2 text-2xl font-black md:text-3xl">{t('landing.finalTitle')}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">{t('landing.finalBody')}</p>
+          </div>
+          <Link
+            to="/onboarding/company"
+            className="mt-5 inline-flex shrink-0 items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-black text-primary md:mt-0"
+          >
+            {t('landing.finalCta')}
+          </Link>
         </div>
       </section>
     </main>

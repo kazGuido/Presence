@@ -51,6 +51,8 @@ export default function App() {
       <CapacitorNotificationBridge />
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/onboarding" element={<EmployerRegister />} />
+        <Route path="/onboarding/company" element={<EmployerRegister />} />
         <Route path="/employer/login" element={<EmployerLogin />} />
         <Route path="/employer/register" element={<EmployerRegister />} />
         <Route path="/employer" element={<EmployerShell />}>

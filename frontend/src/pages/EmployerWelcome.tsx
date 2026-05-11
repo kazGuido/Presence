@@ -38,14 +38,14 @@ export function EmployerWelcome() {
             <p className="mt-4 max-w-2xl text-lg leading-8 text-on-surface-variant">{t('employer.welcomeSubtitle')}</p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
-                to="/employer/employees"
+                to="/employer/sites"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-on-primary shadow-lg shadow-primary/20"
               >
                 {t('employer.welcomePrimaryCta')}
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </Link>
               <Link
-                to="/employer/sites"
+                to="/employer/employees"
                 className="inline-flex items-center justify-center rounded-2xl border border-outline/20 bg-surface px-5 py-3 text-sm font-bold text-on-surface"
               >
                 {t('employer.welcomeSecondaryCta')}

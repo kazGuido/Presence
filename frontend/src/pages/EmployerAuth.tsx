@@ -37,7 +37,15 @@ function AuthShell({
             <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/70">{t('landing.brandKicker')}</p>
           </div>
         </Link>
-        <LanguageToggle />
+        <div className="flex items-center gap-2">
+          <Link
+            to="/"
+            className="hidden rounded-full border border-outline/20 bg-white/70 px-4 py-2 text-sm font-bold text-on-surface shadow-sm backdrop-blur hover:border-primary/30 sm:inline-flex"
+          >
+            {t('auth.backHome')}
+          </Link>
+          <LanguageToggle />
+        </div>
       </div>
 
       <div className="mx-auto mt-10 grid max-w-6xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
@@ -47,6 +55,11 @@ function AuthShell({
           <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">
             {side === 'register' ? t('auth.companyOnboarding') : t('auth.secureWorkspace')}
           </p>
+          {side === 'register' && (
+            <p className="mt-3 inline-flex rounded-full bg-primary-container px-3 py-1 text-xs font-black uppercase tracking-wide text-primary">
+              {t('auth.onboardingStepLabel')}
+            </p>
+          )}
           <h1 className="mt-4 text-4xl font-black leading-tight tracking-[-0.04em] text-on-surface md:text-5xl">
             {title}
           </h1>
