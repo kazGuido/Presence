@@ -1,9 +1,9 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { BornePage } from './pages/BornePage';
 import { CapacitorNotificationBridge } from './components/CapacitorNotificationBridge';
-import { EmployeeShell } from './components/EmployeeShell';
 import { AttendByToken } from './pages/AttendByToken';
-import { EmployeeController } from './pages/EmployeeController';
+import { EmployeeShell } from './components/EmployeeShell';
 import { EmployeeLogin } from './pages/EmployeeLogin';
 import { EmployeeMagic } from './pages/EmployeeMagic';
 import {
@@ -56,6 +56,7 @@ export default function App() {
         <Route path="/onboarding/company" element={<EmployerRegister />} />
         <Route path="/super-admin/login" element={<SuperAdminLogin />} />
         <Route path="/super-admin" element={<SuperAdminDashboard />} />
+        <Route path="/borne/:kioskToken" element={<BornePage />} />
         <Route path="/employer/login" element={<EmployerLogin />} />
         <Route path="/employer/register" element={<EmployerRegister />} />
         <Route path="/employer" element={<EmployerShell />}>
@@ -79,7 +80,6 @@ export default function App() {
           <Route path="historique" element={<EmployeeHistorique />} />
           <Route path="parametres" element={<EmployeeParametres />} />
           <Route path="confirmation" element={<EmployeeConfirmation />} />
-          <Route path="controller" element={<EmployeeController />} />
         </Route>
         <Route path="/attend/:token" element={<AttendByToken />} />
       </Routes>

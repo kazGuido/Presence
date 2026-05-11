@@ -1,57 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, getEmployeeToken } from '../api/client';
 import { ClockInNudgeListener } from './ClockInNudgeListener';
 import { LanguageToggle } from './LanguageToggle';
 import { MobileHexTabBar, type HexTabItem } from './MobileHexTabBar';
 import { useEmployeePushRegistration } from '../hooks/useEmployeePushRegistration';
 
-type AttendancePolicy = {
-  allow_kiosk_borne: boolean;
-};
-
 export function EmployeeShell() {
   const { t } = useTranslation();
   useEmployeePushRegistration();
-  const token = getEmployeeToken();
-  const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
-  const [canHostKiosk, setCanHostKiosk] = useState(false);
-
-  useEffect(() => {
-    if (!token) {
-      setPolicy(null);
-      setCanHostKiosk(false);
-      return;
-    }
-    void Promise.all([
-      apiFetch('/api/employee/attendance-policy', { token }).then((r) => r.json() as Promise<AttendancePolicy>),
-      apiFetch('/api/employee/communication/me', { token }).then(
-        (r) => r.json() as Promise<{ can_show_controller_ui?: boolean }>
-      ),
-    ])
-      .then(([p, comm]) => {
-        setPolicy(p);
-        setCanHostKiosk(Boolean(comm.can_show_controller_ui));
-      })
-      .catch(() => {
-        setPolicy(null);
-        setCanHostKiosk(false);
-      });
-  }, [token]);
-
-  const showControllerTab = Boolean(policy?.allow_kiosk_borne && canHostKiosk);
 
   const employeeHexTabs: HexTabItem[] = useMemo(
     () => [
       { to: '/employee/historique', label: t('employee.navHistory'), icon: 'history' },
       { to: '/employee', label: t('employee.navPointer'), icon: 'alarm_on', center: true, matchIndex: true },
-      ...(showControllerTab
-        ? [{ to: '/employee/controller', label: t('employee.navController'), icon: 'qr_code_2' }]
-        : []),
       { to: '/employee/parametres', label: t('employee.navSettings'), icon: 'tune' },
     ],
-    [t, showControllerTab]
+    [t]
   );
 
   return (
@@ -84,16 +49,6 @@ export function EmployeeShell() {
               >
                 {t('employee.navHistory')}
               </NavLink>
-              {showControllerTab && (
-                <NavLink
-                  to="/employee/controller"
-                  className={({ isActive }) =>
-                    `text-sm font-medium ${isActive ? 'border-b-2 border-primary pb-1 text-primary' : 'text-on-surface-variant hover:text-primary'}`
-                  }
-                >
-                  {t('employee.navController')}
-                </NavLink>
-              )}
               <NavLink
                 to="/employee/parametres"
                 className={({ isActive }) =>
