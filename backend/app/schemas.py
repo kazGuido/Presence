@@ -120,6 +120,11 @@ class EmployeeCreate(BaseModel):
     notify_push: bool = True
 
 
+class EmployeeBatchCreateIn(BaseModel):
+    employees: list[EmployeeCreate] = Field(min_length=1, max_length=250)
+    send_invites: bool = True
+
+
 class EmployeeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -155,6 +160,21 @@ class EmployeeOut(BaseModel):
                 "can_show_controller_ui": bool(getattr(v, "can_show_controller_ui", False)),
             }
         return v
+
+
+class EmployeeInviteStatusOut(BaseModel):
+    sent: bool
+    channel: str | None = None
+    message: str | None = None
+
+
+class EmployeeBatchCreatedOut(BaseModel):
+    employee: EmployeeOut
+    invite: EmployeeInviteStatusOut
+
+
+class EmployeeBatchCreateOut(BaseModel):
+    created: list[EmployeeBatchCreatedOut]
 
 
 class AssignScheduleIn(BaseModel):

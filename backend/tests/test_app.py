@@ -348,3 +348,53 @@ def test_punch_level_export_includes_geofence_review_fields(monkeypatch, tmp_pat
     assert rows[0]["geofence_review_status"] == "pending"
     assert rows[0]["source"] == "whatsapp_link"
     assert rows[0]["has_photo"] == "true"
+
+
+def test_batch_employee_create_returns_invitation_statuses(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    with TestClient(app_module.app) as client:
+        register = client.post(
+            "/api/auth/register",
+            json={
+                "company_name": "Acme Field Ops",
+                "employer_name": "Ada Admin",
+                "employer_email": "ada@example.com",
+                "password": "strong-password",
+            },
+        )
+        assert register.status_code == 200
+        token = register.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = client.post(
+            "/api/employees/batch",
+            headers=headers,
+            json={
+                "send_invites": True,
+                "employees": [
+                    {
+                        "display_name": "Grace Hopper",
+                        "email": "grace@example.com",
+                        "phone_e164": "+2250102030405",
+                        "pin": "1234",
+                    },
+                    {"display_name": "No Email", "pin": "6789"},
+                ],
+            },
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert [row["employee"]["display_name"] for row in body["created"]] == [
+            "Grace Hopper",
+            "No Email",
+        ]
+        assert body["created"][0]["employee"]["email"] == "grace@example.com"
+        assert body["created"][0]["invite"]["sent"] is False
+        assert body["created"][0]["invite"]["message"] == "Magic link requires Redis"
+        assert body["created"][1]["invite"]["message"] == "Employee has no email"
+
+        list_response = client.get("/api/employees", headers=headers)
+        assert list_response.status_code == 200
+        assert len(list_response.json()) == 2

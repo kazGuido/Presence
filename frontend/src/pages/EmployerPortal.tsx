@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { WorkSiteMap } from '../components/WorkSiteMap';
 import { MobileHexTabBar, type HexTabItem } from '../components/MobileHexTabBar';
+import { BatchEmployeeWizard } from '../components/BatchEmployeeWizard';
 import { apiFetch, getEmployerToken, setEmployerToken } from '../api/client';
 
 export function EmployerShell() {
@@ -1217,6 +1218,8 @@ export function EmployerEmployees() {
         <h1 className="text-2xl font-bold text-on-surface md:text-3xl">{t('employer.employeesTitle')}</h1>
         <p className="mt-1 text-on-surface-variant">{t('employer.employeesSubtitle')}</p>
       </div>
+
+      <BatchEmployeeWizard sites={sites} onCreated={load} />
 
       <form
         onSubmit={(e) => void add(e)}
