@@ -559,68 +559,73 @@ def test_super_admin_weekly_report_send_uses_configured_recipients(monkeypatch, 
         assert response.json()["sent"] == 2
 
 
-def test_employee_can_scan_kiosk_qr_and_record_punch(monkeypatch, tmp_path):
+def test_employee_can_scan_employer_published_borne_and_record_gps_punch(monkeypatch, tmp_path):
     app_module = load_app(monkeypatch, tmp_path)
-
-    class FakeRedis:
-        def __init__(self):
-            self.store: dict[str, str] = {}
-
-        def setex(self, key, ttl, value):
-            self.store[key] = value
-
-        def get(self, key):
-            return self.store.get(key)
-
-    fake_redis = FakeRedis()
 
     with TestClient(app_module.app) as client:
         from app.core.database import SessionLocal
-        from app.core.security import create_access_token
-        from app.models import Company, Employee, Punch, PunchSource, WorkSite
-        from app.routers import controller_sessions
-
-        monkeypatch.setattr(controller_sessions, "get_redis", lambda: fake_redis)
+        from app.core.security import create_access_token, hash_password
+        from app.models import Company, Employee, EmployerUser, Punch, PunchSource, WorkSite
 
         db = SessionLocal()
         try:
-            company = Company(name="Acme", slug="acme")
+            company = Company(name="Acme", slug="acme", allow_punch_gps=False)
             db.add(company)
             db.flush()
             site = WorkSite(company_id=company.id, name="HQ", lat=5.0, lng=-4.0, radius_m=100.0)
             db.add(site)
             db.flush()
-            host = Employee(
+            employer = EmployerUser(
                 company_id=company.id,
-                display_name="Host",
-                pin_hash="unused",
-                can_show_controller_ui=True,
-                default_work_site_id=site.id,
+                email="boss@example.com",
+                password_hash="unused",
+                name="Boss",
             )
             scanner = Employee(
                 company_id=company.id,
                 display_name="Scanner",
-                pin_hash="unused",
+                email="scanner@example.com",
+                pin_hash=hash_password("1234"),
                 default_work_site_id=site.id,
             )
-            db.add_all([host, scanner])
+            fallback = Employee(
+                company_id=company.id,
+                display_name="Fallback",
+                email="fallback@example.com",
+                pin_hash=hash_password("5678"),
+                default_work_site_id=site.id,
+            )
+            db.add_all([employer, scanner, fallback])
             db.commit()
-            host_token = create_access_token(
-                {"sub": host.id, "typ": "employee", "company_id": company.id, "employee_id": host.id}
+            employer_token = create_access_token(
+                {
+                    "sub": employer.id,
+                    "typ": "employer",
+                    "company_id": company.id,
+                    "email": employer.email,
+                }
             )
             scanner_token = create_access_token(
                 {"sub": scanner.id, "typ": "employee", "company_id": company.id, "employee_id": scanner.id}
             )
             scanner_id = scanner.id
+            fallback_id = fallback.id
+            site_id = site.id
         finally:
             db.close()
 
         session_response = client.post(
-            "/api/controller-sessions",
-            headers={"Authorization": f"Bearer {host_token}"},
+            "/api/controller-sessions/published",
+            headers={"Authorization": f"Bearer {employer_token}"},
+            json={"work_site_id": site_id},
         )
         assert session_response.status_code == 201
         kiosk_token = session_response.json()["kiosk_token"]
+        assert "/borne/" in session_response.json()["public_url"]
+
+        public_response = client.get(f"/api/controller-sessions/{kiosk_token}/public")
+        assert public_response.status_code == 200
+        assert public_response.json()["site_name"] == "HQ"
 
         punch_response = client.post(
             f"/api/controller-sessions/{kiosk_token}/punch",
@@ -633,10 +638,31 @@ def test_employee_can_scan_kiosk_qr_and_record_punch(monkeypatch, tmp_path):
         assert body["source"] == "controller_scan"
         assert body["within_geofence"] is True
 
+        fallback_response = client.post(
+            f"/api/controller-sessions/{kiosk_token}/site-login-punch",
+            data={
+                "identifier": "fallback@example.com",
+                "password": "5678",
+                "lat": "5.0001",
+                "lng": "-4.0001",
+                "location_unavailable": "false",
+            },
+        )
+        assert fallback_response.status_code == 201
+        fallback_body = fallback_response.json()
+        assert fallback_body["employee_id"] == fallback_id
+        assert fallback_body["source"] == "controller_manual"
+        assert fallback_body["within_geofence"] is True
+
         db = SessionLocal()
         try:
             punch = db.get(Punch, body["id"])
             assert punch.source == PunchSource.controller_scan
             assert punch.employee_id == scanner_id
+            assert round(punch.lat, 4) == 5.0001
+            fallback_punch = db.get(Punch, fallback_body["id"])
+            assert fallback_punch.source == PunchSource.controller_manual
+            assert fallback_punch.employee_id == fallback_id
+            assert round(fallback_punch.lat, 4) == 5.0001
         finally:
             db.close()

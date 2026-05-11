@@ -255,6 +255,10 @@ class AttendanceSessionCreate(BaseModel):
     expires_hours: int = Field(default=24, ge=1, le=168)
 
 
+class ControllerPublishIn(BaseModel):
+    work_site_id: str
+
+
 class AttendanceSessionPublicOut(BaseModel):
     site_name: str
     employee_display_name: str

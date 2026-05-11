@@ -684,6 +684,7 @@ export function EmployerSites() {
   const [lng, setLng] = useState(-4.0277);
   const [radiusM, setRadiusM] = useState(200);
   const [err, setErr] = useState<string | null>(null);
+  const [borneLinks, setBorneLinks] = useState<Record<string, string>>({});
 
   const load = () =>
     apiFetch('/api/work-sites')
@@ -718,6 +719,31 @@ export function EmployerSites() {
   const onMapMove = (la: number, lo: number) => {
     setLat(Math.round(la * 1e6) / 1e6);
     setLng(Math.round(lo * 1e6) / 1e6);
+  };
+
+  const publishBorne = async (site: Site) => {
+    setErr(null);
+    try {
+      const response = await apiFetch('/api/controller-sessions/published', {
+        method: 'POST',
+        body: JSON.stringify({ work_site_id: site.id }),
+      });
+      const data = (await response.json()) as { kiosk_token: string; public_url?: string };
+      const url =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/borne/${encodeURIComponent(data.kiosk_token)}`
+          : data.public_url || '';
+      setBorneLinks((prev) => ({ ...prev, [site.id]: url }));
+      if (navigator.clipboard && url) {
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          /* Link is still shown if clipboard is unavailable. */
+        }
+      }
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : t('common.error'));
+    }
   };
 
   return (
@@ -825,6 +851,36 @@ export function EmployerSites() {
               <p className="mt-3 truncate font-mono text-[11px] text-on-surface-variant/80" title={s.id}>
                 ID {s.id}
               </p>
+              <div className="mt-4 rounded-2xl border border-primary/10 bg-primary-container/15 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">{t('employer.sitesBorneTitle')}</p>
+                    <p className="text-xs text-on-surface-variant">{t('employer.sitesBorneHint')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void publishBorne(s)}
+                    className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-on-primary"
+                  >
+                    {t('employer.sitesBornePublish')}
+                  </button>
+                </div>
+                {borneLinks[s.id] && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <code className="break-all rounded-xl bg-surface px-3 py-2 text-[10px] text-on-surface-variant">
+                      {borneLinks[s.id]}
+                    </code>
+                    <a
+                      href={borneLinks[s.id]}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-bold text-primary underline"
+                    >
+                      {t('employer.sitesBorneOpen')}
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
           </article>
         ))}
