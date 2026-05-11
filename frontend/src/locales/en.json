@@ -16,6 +16,7 @@
     "no": "No"
   },
   "landing": {
+    "brandProduct": "Presence, by NiceDayTech",
     "brandKicker": "Workforce ops",
     "login": "Sign in",
     "start": "Start now",
@@ -34,6 +35,13 @@
     "mockStatus": "Live",
     "mockReview": "Review",
     "mockClockIn": "Clock-in",
+    "demoStepLabel": "Animated example",
+    "demoStepTitle": "Set up, invite, confirm",
+    "demoStepBody": "The cursor walks through the real workflow: create the company, prepare sites, import employees, then confirm attendance.",
+    "demoPracticeKicker": "In practice",
+    "demoPracticeTitle": "Today on site",
+    "demoPracticeBadge": "Demo",
+    "demoButton": "Send invitations",
     "sectionKicker": "Built for operations",
     "sectionTitle": "Everything a company needs before go-live.",
     "featureGeofenceTitle": "Geofenced proof",
@@ -60,7 +68,7 @@
     "finalCta": "Start onboarding"
   },
   "employee": {
-    "brand": "Mobile Sync",
+    "brand": "Presence",
     "navPointer": "Clock",
     "navHistory": "History",
     "navSettings": "Settings",

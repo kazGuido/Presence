@@ -13,14 +13,13 @@ function detectLng(): string {
   } catch {
     /* ignore */
   }
-  if (typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('fr')) return 'fr';
-  return 'en';
+  return 'fr';
 }
 
 void i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, fr: { translation: fr } },
   lng: detectLng(),
-  fallbackLng: 'en',
+  fallbackLng: 'fr',
   interpolation: { escapeValue: false },
 });
 

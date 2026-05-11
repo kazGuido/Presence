@@ -28,6 +28,141 @@ body {
   }
 }
 
+@keyframes landingCursorPath {
+  0%,
+  8% {
+    transform: translate(70px, 245px) rotate(-16deg);
+  }
+  28%,
+  36% {
+    transform: translate(185px, 145px) rotate(-16deg);
+  }
+  56%,
+  64% {
+    transform: translate(390px, 285px) rotate(-16deg);
+  }
+  84%,
+  100% {
+    transform: translate(455px, 360px) rotate(-16deg);
+  }
+}
+
+@keyframes landingPulseClick {
+  0%,
+  24%,
+  100% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  28% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  36% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+@keyframes landingPulseClickTwo {
+  0%,
+  52%,
+  100% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  58% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  66% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+@keyframes landingReveal {
+  0% {
+    opacity: 0.5;
+    transform: translateY(8px);
+  }
+  45%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landingProgress {
+  0% {
+    transform: scaleX(0.18);
+  }
+  50%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes landingGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 86, 177, 0.28);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(76, 86, 177, 0);
+  }
+}
+
+.landing-demo-stage {
+  min-height: 31rem;
+}
+
+.landing-demo-cursor {
+  animation: landingCursorPath 5.5s ease-in-out infinite;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  z-index: 20;
+}
+
+.landing-demo-click {
+  background: rgba(76, 86, 177, 0.28);
+  border-radius: 9999px;
+  height: 3rem;
+  pointer-events: none;
+  position: absolute;
+  width: 3rem;
+  z-index: 10;
+}
+
+.landing-demo-click-one {
+  animation: landingPulseClick 5.5s ease-out infinite;
+  left: 11rem;
+  top: 8rem;
+}
+
+.landing-demo-click-two {
+  animation: landingPulseClickTwo 5.5s ease-out infinite;
+  left: 23.4rem;
+  top: 17rem;
+}
+
+.landing-demo-row,
+.landing-demo-card {
+  animation: landingReveal 3.4s ease-in-out infinite alternate;
+}
+
+.landing-demo-progress {
+  animation: landingProgress 4.6s ease-in-out infinite;
+  transform-origin: left;
+}
+
+.landing-demo-button,
+.landing-demo-live {
+  animation: landingGlow 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

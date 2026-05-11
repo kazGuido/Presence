@@ -49,7 +49,7 @@ export function LandingPage() {
               </span>
             </div>
             <div>
-              <p className="text-lg font-black tracking-tight">Presence</p>
+              <p className="text-lg font-black tracking-tight">{t('landing.brandProduct')}</p>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/70">
                 {t('landing.brandKicker')}
               </p>
@@ -116,41 +116,87 @@ export function LandingPage() {
               <p className="text-xs text-on-surface-variant">{t('landing.liveCardBody')}</p>
             </div>
             <div className="rounded-[2rem] border border-white/70 bg-white/75 p-3 shadow-2xl shadow-primary/15 backdrop-blur">
-              <div className="overflow-hidden rounded-[1.5rem] border border-outline/10 bg-surface-container-lowest">
+              <div className="landing-demo-stage relative overflow-hidden rounded-[1.5rem] border border-outline/10 bg-surface-container-lowest">
                 <div className="flex items-center justify-between border-b border-outline/10 bg-surface-container-low px-5 py-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-primary">{t('landing.mockHeader')}</p>
                     <p className="font-bold">{t('landing.mockTitle')}</p>
                   </div>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-700/20">
+                  <span className="landing-demo-live rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-700/20">
                     {t('landing.mockStatus')}
                   </span>
                 </div>
-                <div className="space-y-4 p-5">
-                  {[
-                    ['Awa Diop', '08:02', 'OK', 'emerald'],
-                    ['Moussa Kone', '08:17', t('landing.mockReview'), 'amber'],
-                    ['Nadia Traore', '08:00', 'OK', 'emerald'],
-                  ].map(([name, time, status, tone]) => (
-                    <div key={name} className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3">
-                      <div className="hex-clip flex h-11 w-9 items-center justify-center bg-primary text-sm font-black text-on-primary">
-                        {name.slice(0, 2).toUpperCase()}
+
+                <div className="grid gap-4 p-5 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="space-y-3">
+                    <div className="rounded-2xl bg-primary p-4 text-on-primary shadow-lg shadow-primary/15">
+                      <p className="text-xs font-black uppercase tracking-wide text-white/70">{t('landing.demoStepLabel')}</p>
+                      <p className="mt-1 text-lg font-black">{t('landing.demoStepTitle')}</p>
+                      <p className="mt-1 text-xs leading-5 text-white/80">{t('landing.demoStepBody')}</p>
+                    </div>
+                    {[
+                      ['domain_add', t('landing.flowCompanyTitle'), '100%'],
+                      ['pin_drop', t('landing.flowSitesTitle'), '76%'],
+                      ['group_add', t('landing.flowTeamTitle'), '42%'],
+                    ].map(([icon, label, width], index) => (
+                      <div key={label} className="landing-demo-row rounded-2xl bg-surface-container-low p-3" style={{ animationDelay: `${index * 0.55}s` }}>
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-container text-primary">
+                            <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                          </span>
+                          <span className="text-sm font-bold text-on-surface">{label}</span>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+                          <div className="landing-demo-progress h-full rounded-full bg-primary" style={{ width }} />
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold">{name}</p>
-                        <p className="text-xs text-on-surface-variant">{t('landing.mockClockIn')} {time}</p>
+                    ))}
+                  </div>
+
+                  <div className="rounded-3xl border border-outline/10 bg-white/70 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wide text-on-surface-variant">{t('landing.demoPracticeKicker')}</p>
+                        <p className="font-bold text-on-surface">{t('landing.demoPracticeTitle')}</p>
                       </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${
-                          tone === 'emerald'
-                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-700/15'
-                            : 'bg-secondary-container text-on-secondary-container ring-1 ring-secondary/25'
-                        }`}
-                      >
-                        {status}
+                      <span className="rounded-full bg-primary-container px-3 py-1 text-xs font-bold text-primary">
+                        {t('landing.demoPracticeBadge')}
                       </span>
                     </div>
-                  ))}
+                    {[
+                      ['Awa Diop', '08:02', 'OK', 'emerald'],
+                      ['Moussa Kone', '08:17', t('landing.mockReview'), 'amber'],
+                      ['Nadia Traore', '08:00', 'OK', 'emerald'],
+                    ].map(([name, time, status, tone], index) => (
+                      <div key={name} className="landing-demo-card mb-3 flex items-center gap-3 rounded-2xl bg-surface-container-low p-3" style={{ animationDelay: `${0.35 + index * 0.5}s` }}>
+                        <div className="hex-clip flex h-11 w-9 items-center justify-center bg-primary text-sm font-black text-on-primary">
+                          {name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold">{name}</p>
+                          <p className="text-xs text-on-surface-variant">{t('landing.mockClockIn')} {time}</p>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${
+                            tone === 'emerald'
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-700/15'
+                              : 'bg-secondary-container text-on-secondary-container ring-1 ring-secondary/25'
+                          }`}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                    ))}
+                    <button type="button" className="landing-demo-button mt-1 w-full rounded-2xl bg-primary py-3 text-sm font-black text-on-primary shadow-lg shadow-primary/20">
+                      {t('landing.demoButton')}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="landing-demo-click landing-demo-click-one" />
+                <div className="landing-demo-click landing-demo-click-two" />
+                <div className="landing-demo-cursor">
+                  <span className="material-symbols-outlined text-[30px] text-primary drop-shadow-lg">near_me</span>
                 </div>
               </div>
             </div>

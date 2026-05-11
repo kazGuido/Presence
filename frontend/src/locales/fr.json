@@ -16,6 +16,7 @@
     "no": "Non"
   },
   "landing": {
+    "brandProduct": "Presence, by NiceDayTech",
     "brandKicker": "Ops terrain",
     "login": "Connexion",
     "start": "Commencer",
@@ -34,6 +35,13 @@
     "mockStatus": "Live",
     "mockReview": "Revue",
     "mockClockIn": "Arrivée",
+    "demoStepLabel": "Exemple animé",
+    "demoStepTitle": "Configurer, inviter, confirmer",
+    "demoStepBody": "Le curseur montre le vrai parcours : créer l’entreprise, préparer les sites, importer les employés puis confirmer la présence.",
+    "demoPracticeKicker": "En pratique",
+    "demoPracticeTitle": "Aujourd’hui sur site",
+    "demoPracticeBadge": "Démo",
+    "demoButton": "Envoyer les invitations",
     "sectionKicker": "Pensé pour les opérations",
     "sectionTitle": "Tout ce qu’il faut avant la mise en production.",
     "featureGeofenceTitle": "Preuve géolocalisée",
@@ -60,7 +68,7 @@
     "finalCta": "Démarrer l’onboarding"
   },
   "employee": {
-    "brand": "Mobile Sync",
+    "brand": "Presence",
     "navPointer": "Pointer",
     "navHistory": "Historique",
     "navSettings": "Paramètres",
