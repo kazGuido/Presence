@@ -2,6 +2,9 @@ import re
 import time
 from collections import defaultdict
 
+import secrets
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -17,6 +20,7 @@ from app.schemas import (
     EmployeeOtpVerifyIn,
     LoginIn,
     RegisterIn,
+    SuperAdminLoginIn,
     TokenOut,
 )
 from app.services.auth_magic import build_magic_token, verify_magic_token_and_consume
@@ -122,6 +126,22 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> Tok
     db.commit()
     token = create_access_token(
         {"sub": user.id, "typ": "employer", "company_id": user.company_id, "email": user.email}
+    )
+    return TokenOut(access_token=token)
+
+
+@router.post("/super-admin/login", response_model=TokenOut)
+def super_admin_login(body: SuperAdminLoginIn, request: Request) -> TokenOut:
+    settings = get_settings()
+    if not settings.super_admin_email or not settings.super_admin_password:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Super admin is not configured")
+    email_ok = secrets.compare_digest(str(body.email).lower(), settings.super_admin_email.lower())
+    password_ok = secrets.compare_digest(body.password, settings.super_admin_password)
+    if not (email_ok and password_ok):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+    token = create_access_token(
+        {"sub": "super-admin", "typ": "super_admin", "email": settings.super_admin_email.lower()},
+        expires_delta=timedelta(hours=12),
     )
     return TokenOut(access_token=token)
 

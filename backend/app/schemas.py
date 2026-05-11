@@ -16,6 +16,11 @@ class LoginIn(BaseModel):
     password: str
 
 
+class SuperAdminLoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

@@ -463,3 +463,96 @@ def test_employee_can_request_magic_link_without_account_enumeration(monkeypatch
             assert audit.entity_id == employee_id
         finally:
             db.close()
+
+
+def test_super_admin_can_view_platform_overview(monkeypatch, tmp_path):
+    monkeypatch.setenv("SUPER_ADMIN_EMAIL", "ops@example.com")
+    monkeypatch.setenv("SUPER_ADMIN_PASSWORD", "secret-password")
+    app_module = load_app(monkeypatch, tmp_path)
+
+    with TestClient(app_module.app) as client:
+        from app.core.database import SessionLocal
+        from app.models import Company, Employee, EmployerUser, Punch, PunchKind, PunchSource
+
+        db = SessionLocal()
+        try:
+            company = Company(name="Acme", slug="acme")
+            db.add(company)
+            db.flush()
+            employer = EmployerUser(
+                company_id=company.id,
+                email="boss@example.com",
+                password_hash="unused",
+                name="Boss",
+            )
+            employee = Employee(company_id=company.id, display_name="Ada", pin_hash="unused")
+            db.add_all([employer, employee])
+            db.flush()
+            db.add(
+                Punch(
+                    company_id=company.id,
+                    employee_id=employee.id,
+                    kind=PunchKind.punch_in,
+                    at=datetime.now(timezone.utc),
+                    lat=0,
+                    lng=0,
+                    source=PunchSource.app,
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        login = client.post(
+            "/api/auth/super-admin/login",
+            json={"email": "ops@example.com", "password": "secret-password"},
+        )
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+
+        forbidden = client.get("/api/super-admin/overview")
+        assert forbidden.status_code == 401
+
+        response = client.get(
+            "/api/super-admin/overview",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["summary"]["companies"] == 1
+        assert body["summary"]["employees_active"] == 1
+        assert body["summary"]["punches_24h"] == 1
+        assert body["health"]["database"] == "ok"
+        assert body["recent_companies"][0]["slug"] == "acme"
+
+
+def test_super_admin_weekly_report_send_uses_configured_recipients(monkeypatch, tmp_path):
+    monkeypatch.setenv("SUPER_ADMIN_EMAIL", "ops@example.com")
+    monkeypatch.setenv("SUPER_ADMIN_PASSWORD", "secret-password")
+    monkeypatch.setenv("SUPER_ADMIN_REPORT_EMAILS", "ops@example.com, founder@example.com")
+    app_module = load_app(monkeypatch, tmp_path)
+
+    with TestClient(app_module.app) as client:
+        from app.routers import super_admin as super_admin_router
+
+        monkeypatch.setattr(super_admin_router, "send_weekly_platform_report", lambda db: {"sent": 2, "skipped": None})
+
+        login = client.post(
+            "/api/auth/super-admin/login",
+            json={"email": "ops@example.com", "password": "secret-password"},
+        )
+        token = login.json()["access_token"]
+
+        config = client.get(
+            "/api/super-admin/report-config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert config.status_code == 200
+        assert config.json()["recipients"] == ["ops@example.com", "founder@example.com"]
+
+        response = client.post(
+            "/api/super-admin/weekly-report/send",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["sent"] == 2
