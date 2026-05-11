@@ -16,6 +16,11 @@ class LoginIn(BaseModel):
     password: str
 
 
+class SuperAdminLoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -24,11 +29,27 @@ class TokenOut(BaseModel):
 class EmployeeLoginIn(BaseModel):
     company_slug: str
     employee_id: str
-    pin: str = Field(min_length=4, max_length=12)
+    password: str | None = Field(default=None, min_length=4, max_length=128)
+    pin: str | None = Field(default=None, min_length=4, max_length=12)
+
+    @model_validator(mode="after")
+    def password_or_pin_required(self) -> "EmployeeLoginIn":
+        if not (self.password or self.pin):
+            raise ValueError("Password is required")
+        return self
+
+    def password_value(self) -> str:
+        return self.password or self.pin or ""
 
 
 class EmployeeMagicConsumeIn(BaseModel):
     token: str = Field(min_length=20)
+
+
+class EmployeeMagicRequestIn(BaseModel):
+    company_slug: str
+    employee_id: str
+    next: str | None = Field(default=None, max_length=512)
 
 
 class EmployeeOtpRequestIn(BaseModel):
@@ -120,6 +141,11 @@ class EmployeeCreate(BaseModel):
     notify_push: bool = True
 
 
+class EmployeeBatchCreateIn(BaseModel):
+    employees: list[EmployeeCreate] = Field(min_length=1, max_length=250)
+    send_invites: bool = True
+
+
 class EmployeeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -155,6 +181,21 @@ class EmployeeOut(BaseModel):
                 "can_show_controller_ui": bool(getattr(v, "can_show_controller_ui", False)),
             }
         return v
+
+
+class EmployeeInviteStatusOut(BaseModel):
+    sent: bool
+    channel: str | None = None
+    message: str | None = None
+
+
+class EmployeeBatchCreatedOut(BaseModel):
+    employee: EmployeeOut
+    invite: EmployeeInviteStatusOut
+
+
+class EmployeeBatchCreateOut(BaseModel):
+    created: list[EmployeeBatchCreatedOut]
 
 
 class AssignScheduleIn(BaseModel):

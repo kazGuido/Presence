@@ -1,5 +1,6 @@
 const EMPLOYER = 'ga_employer_token';
 const EMPLOYEE = 'ga_employee_token';
+const SUPER_ADMIN = 'ga_super_admin_token';
 
 export function getEmployerToken(): string | null {
   return localStorage.getItem(EMPLOYER);
@@ -17,6 +18,15 @@ export function getEmployeeToken(): string | null {
 export function setEmployeeToken(t: string | null) {
   if (t) localStorage.setItem(EMPLOYEE, t);
   else localStorage.removeItem(EMPLOYEE);
+}
+
+export function getSuperAdminToken(): string | null {
+  return localStorage.getItem(SUPER_ADMIN);
+}
+
+export function setSuperAdminToken(t: string | null) {
+  if (t) localStorage.setItem(SUPER_ADMIN, t);
+  else localStorage.removeItem(SUPER_ADMIN);
 }
 
 async function parseError(res: Response): Promise<string> {

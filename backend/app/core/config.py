@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     # Worker
     reminder_lead_minutes: int = 30  # send "confirm attendance" this many minutes before schedule start
 
+    # Platform super admin / observability
+    super_admin_email: str = ""
+    super_admin_password: str = ""
+    super_admin_weekly_report_enabled: bool = False
+    super_admin_report_emails: str = ""
+    super_admin_weekly_report_weekday: int = 0  # Monday=0
+    super_admin_weekly_report_hour_utc: int = 8
+
     # FCM (mobile push) — set FCM_SERVICE_ACCOUNT_FILE to service account JSON from Firebase
     fcm_project_id: str = ""
     fcm_service_account_file: str = ""  # path to Google service account JSON
@@ -56,6 +64,10 @@ class Settings(BaseSettings):
         if raw == "*":
             return ["*"]
         return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+
+    @property
+    def super_admin_report_recipient_list(self) -> list[str]:
+        return [email.strip() for email in self.super_admin_report_emails.split(",") if email.strip()]
 
 
 @lru_cache

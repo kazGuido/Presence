@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.models import Company, Employee, EmployerUser
@@ -71,3 +72,21 @@ def get_employee_company(
     if not c:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Company missing")
     return c
+
+
+def get_current_super_admin(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
+) -> dict[str, str]:
+    if not creds or creds.scheme.lower() != "bearer":
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+    try:
+        payload = decode_token(creds.credentials)
+    except ValueError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    if payload.get("typ") != "super_admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Super admin token required")
+    settings = get_settings()
+    email = str(payload.get("email") or "").lower()
+    if not settings.super_admin_email or email != settings.super_admin_email.lower():
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Super admin not configured")
+    return {"email": email}

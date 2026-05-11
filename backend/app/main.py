@@ -25,6 +25,7 @@ from app.routers import (
     employees,
     employer_meta,
     punches,
+    super_admin,
     whatsapp_admin,
     work_schedules,
     work_sites,
@@ -92,6 +93,7 @@ app.include_router(employee_notifications.router, prefix="/api")
 app.include_router(employee_push.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(whatsapp_admin.router, prefix="/api")
+app.include_router(super_admin.router, prefix="/api")
 
 Path(_settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_settings.upload_dir), name="uploads")

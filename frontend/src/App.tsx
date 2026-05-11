@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { CapacitorNotificationBridge } from './components/CapacitorNotificationBridge';
 import { EmployeeShell } from './components/EmployeeShell';
@@ -27,6 +27,8 @@ import { EmployerJournal } from './pages/EmployerJournal';
 import { EmployerSessions } from './pages/EmployerSessions';
 import { EmployerSettings } from './pages/EmployerSettings';
 import { EmployerWelcome } from './pages/EmployerWelcome';
+import { LandingPage } from './pages/LandingPage';
+import { SuperAdminDashboard, SuperAdminLogin } from './pages/SuperAdmin';
 
 export default function App() {
   return (
@@ -49,7 +51,11 @@ export default function App() {
       />
       <CapacitorNotificationBridge />
       <Routes>
-        <Route path="/" element={<Navigate to="/employer/login" replace />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/onboarding" element={<EmployerRegister />} />
+        <Route path="/onboarding/company" element={<EmployerRegister />} />
+        <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+        <Route path="/super-admin" element={<SuperAdminDashboard />} />
         <Route path="/employer/login" element={<EmployerLogin />} />
         <Route path="/employer/register" element={<EmployerRegister />} />
         <Route path="/employer" element={<EmployerShell />}>

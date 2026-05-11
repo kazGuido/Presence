@@ -2,22 +2,29 @@ import re
 import time
 from collections import defaultdict
 
+import secrets
+from datetime import timedelta
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import Company, Employee, EmployerUser
 from app.schemas import (
     EmployeeLoginIn,
     EmployeeMagicConsumeIn,
+    EmployeeMagicRequestIn,
     EmployeeOtpRequestIn,
     EmployeeOtpVerifyIn,
     LoginIn,
     RegisterIn,
+    SuperAdminLoginIn,
     TokenOut,
 )
-from app.services.auth_magic import verify_magic_token_and_consume
+from app.services.auth_magic import build_magic_token, verify_magic_token_and_consume
 from app.services.audit_log import write_audit
 from app.services.redis_client import get_redis
 from app.services.smtp_email import send_plain_email, smtp_configured
@@ -26,16 +33,16 @@ from app.services.verification_codes import issue_code, verify_code
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _otp_ip_bucket: dict[str, list[float]] = defaultdict(list)
-_OTP_WINDOW_SEC = 3600
-_OTP_MAX_PER_WINDOW = 8
+_REQUEST_WINDOW_SEC = 3600
+_REQUEST_MAX_PER_WINDOW = 8
 
 
-def _otp_throttle(ip: str) -> None:
+def _auth_request_throttle(ip: str) -> None:
     now = time.time()
     bucket = _otp_ip_bucket[ip]
-    bucket[:] = [t for t in bucket if now - t < _OTP_WINDOW_SEC]
-    if len(bucket) >= _OTP_MAX_PER_WINDOW:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many OTP requests")
+    bucket[:] = [t for t in bucket if now - t < _REQUEST_WINDOW_SEC]
+    if len(bucket) >= _REQUEST_MAX_PER_WINDOW:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests")
     bucket.append(now)
 
 
@@ -124,6 +131,22 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> Tok
     return TokenOut(access_token=token)
 
 
+@router.post("/super-admin/login", response_model=TokenOut)
+def super_admin_login(body: SuperAdminLoginIn, request: Request) -> TokenOut:
+    settings = get_settings()
+    if not settings.super_admin_email or not settings.super_admin_password:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Super admin is not configured")
+    email_ok = secrets.compare_digest(str(body.email).lower(), settings.super_admin_email.lower())
+    password_ok = secrets.compare_digest(body.password, settings.super_admin_password)
+    if not (email_ok and password_ok):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+    token = create_access_token(
+        {"sub": "super-admin", "typ": "super_admin", "email": settings.super_admin_email.lower()},
+        expires_delta=timedelta(hours=12),
+    )
+    return TokenOut(access_token=token)
+
+
 @router.post("/employee-login", response_model=TokenOut)
 def employee_login(body: EmployeeLoginIn, request: Request, db: Session = Depends(get_db)) -> TokenOut:
     company = db.query(Company).filter(Company.slug == body.company_slug.strip().lower()).first()
@@ -132,7 +155,7 @@ def employee_login(body: EmployeeLoginIn, request: Request, db: Session = Depend
     emp = db.get(Employee, body.employee_id)
     if not emp or emp.company_id != company.id or not emp.active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid company or credentials")
-    if not verify_password(body.pin, emp.pin_hash):
+    if not verify_password(body.password_value(), emp.pin_hash):
         write_audit(
             db,
             company_id=company.id,
@@ -165,6 +188,63 @@ def employee_login(body: EmployeeLoginIn, request: Request, db: Session = Depend
         }
     )
     return TokenOut(access_token=token)
+
+
+@router.post("/employee-magic/request")
+def employee_magic_request(
+    body: EmployeeMagicRequestIn,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    if get_redis() is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Magic link requires Redis")
+    if not smtp_configured():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Magic link requires SMTP")
+    _auth_request_throttle(request.client.host if request.client else "unknown")
+
+    company = db.query(Company).filter(Company.slug == body.company_slug.strip().lower()).first()
+    if not company:
+        return {"ok": True}
+    emp = db.get(Employee, body.employee_id)
+    if not emp or emp.company_id != company.id or not emp.active or not emp.email:
+        return {"ok": True}
+
+    try:
+        token, _jti = build_magic_token(emp.id, company.id)
+    except RuntimeError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+
+    settings = get_settings()
+    base = settings.public_app_url.rstrip("/")
+    params: dict[str, str] = {"token": token}
+    next_path = (body.next or "").strip()
+    if next_path.startswith("/employee") and "//" not in next_path:
+        params["next"] = next_path
+    link = f"{base}/employee/magic?{urlencode(params)}"
+    try:
+        send_plain_email(
+            emp.email,
+            f"Your Presence sign-in link - {company.name}",
+            (
+                f"Hello {emp.display_name},\n\n"
+                f"Open this one-time link to sign in to Presence:\n{link}\n\n"
+                "If you did not request this, you can ignore this email.\n"
+            ),
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    write_audit(
+        db,
+        company_id=company.id,
+        actor_type="employee",
+        actor_id=emp.id,
+        action="auth.employee_magic_request",
+        entity_type="employee",
+        entity_id=emp.id,
+        meta=_request_meta(request),
+    )
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/employee-magic/consume", response_model=TokenOut)
@@ -214,7 +294,7 @@ def employee_otp_request(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OTP requires Redis")
     if not smtp_configured():
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OTP email requires SMTP")
-    _otp_throttle(request.client.host if request.client else "unknown")
+    _auth_request_throttle(request.client.host if request.client else "unknown")
 
     company = db.query(Company).filter(Company.slug == body.company_slug.strip().lower()).first()
     if not company:

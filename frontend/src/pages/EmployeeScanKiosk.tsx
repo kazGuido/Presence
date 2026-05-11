@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { getCurrentPositionGeo, isCapacitorNative, pickCameraPhotoFile } from '../capacitor/native';
 import { apiFetch, getEmployeeToken } from '../api/client';
 
 export function EmployeeScanKiosk() {
@@ -36,31 +37,26 @@ export function EmployeeScanKiosk() {
       const fd = new FormData();
       fd.append('kind', kind);
       let locUnavailable = gpsDenied;
-      await new Promise<void>((resolve) => {
-        if (gpsDenied) {
-          resolve();
-          return;
+      if (!gpsDenied) {
+        try {
+          const pos = await getCurrentPositionGeo();
+          fd.append('lat', String(pos.lat));
+          fd.append('lng', String(pos.lng));
+          fd.append('location_unavailable', 'false');
+        } catch {
+          locUnavailable = true;
         }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            fd.append('lat', String(pos.coords.latitude));
-            fd.append('lng', String(pos.coords.longitude));
-            fd.append('location_unavailable', 'false');
-            resolve();
-          },
-          () => {
-            locUnavailable = true;
-            resolve();
-          },
-          { enableHighAccuracy: true, timeout: 12000 }
-        );
-      });
+      }
       if (locUnavailable) {
         fd.append('location_unavailable', 'true');
-        if (!photo) {
+        let attachment = photo;
+        if (!attachment && isCapacitorNative()) {
+          attachment = await pickCameraPhotoFile();
+        }
+        if (!attachment) {
           throw new Error(t('employee.pointerPhotoMode'));
         }
-        fd.append('file', photo);
+        fd.append('file', attachment);
       }
       await apiFetch(`/api/controller-sessions/${encodeURIComponent(kiosk)}/punch`, {
         method: 'POST',
