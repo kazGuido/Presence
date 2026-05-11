@@ -1,6 +1,7 @@
 services:
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -9,6 +10,7 @@ services:
 
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-presence}
       POSTGRES_USER: ${POSTGRES_USER:-presence}
@@ -23,6 +25,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -53,6 +56,7 @@ services:
 
   api:
     build: .
+    restart: unless-stopped
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
@@ -103,6 +107,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-presence}:${POSTGRES_PASSWORD:-presence_secret}@db:5432/${POSTGRES_DB:-presence}
       REDIS_URL: redis://redis:6379/0
@@ -141,6 +146,7 @@ services:
 
   whatsapp-bridge:
     build: ./whatsapp-bridge
+    restart: unless-stopped
     ports:
       - "127.0.0.1:${WA_BRIDGE_PORT:-13005}:3005"
     environment:
