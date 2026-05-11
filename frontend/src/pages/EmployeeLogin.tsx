@@ -66,7 +66,7 @@ export function EmployeeLogin() {
             </span>
           </div>
           <div>
-            <p className="text-lg font-black">Presence</p>
+            <p className="text-lg font-black">{t('landing.brandProduct')}</p>
             <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/70">{t('employee.loginBadge')}</p>
           </div>
         </Link>

@@ -33,7 +33,7 @@ function AuthShell({
             </span>
           </div>
           <div>
-            <p className="text-lg font-black">Presence</p>
+            <p className="text-lg font-black">{t('landing.brandProduct')}</p>
             <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/70">{t('landing.brandKicker')}</p>
           </div>
         </Link>

@@ -49,7 +49,7 @@ export function LandingPage() {
               </span>
             </div>
             <div>
-              <p className="text-lg font-black tracking-tight">Presence</p>
+              <p className="text-lg font-black tracking-tight">{t('landing.brandProduct')}</p>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/70">
                 {t('landing.brandKicker')}
               </p>
