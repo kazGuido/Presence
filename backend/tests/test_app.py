@@ -398,3 +398,68 @@ def test_batch_employee_create_returns_invitation_statuses(monkeypatch, tmp_path
         list_response = client.get("/api/employees", headers=headers)
         assert list_response.status_code == 200
         assert len(list_response.json()) == 2
+
+
+def test_employee_can_request_magic_link_without_account_enumeration(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    sent: list[tuple[str, str, str]] = []
+
+    with TestClient(app_module.app) as client:
+        from app.core.database import SessionLocal
+        from app.models import AuditEvent, Company, Employee
+        from app.routers import auth as auth_router
+
+        monkeypatch.setattr(auth_router, "get_redis", lambda: object())
+        monkeypatch.setattr(auth_router, "smtp_configured", lambda: True)
+        monkeypatch.setattr(auth_router, "build_magic_token", lambda employee_id, company_id: ("magic-token", "jti"))
+        monkeypatch.setattr(
+            auth_router,
+            "send_plain_email",
+            lambda to, subject, body: sent.append((to, subject, body)),
+        )
+
+        db = SessionLocal()
+        try:
+            company = Company(name="Acme", slug="acme")
+            db.add(company)
+            db.flush()
+            employee = Employee(
+                company_id=company.id,
+                display_name="Ada",
+                email="ada@example.com",
+                pin_hash="unused",
+            )
+            db.add(employee)
+            db.commit()
+            employee_id = employee.id
+        finally:
+            db.close()
+
+        missing_response = client.post(
+            "/api/auth/employee-magic/request",
+            json={"company_slug": "missing", "employee_id": "not-found"},
+        )
+        assert missing_response.status_code == 200
+        assert missing_response.json() == {"ok": True}
+        assert sent == []
+
+        response = client.post(
+            "/api/auth/employee-magic/request",
+            json={"company_slug": "acme", "employee_id": employee_id},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        assert sent[0][0] == "ada@example.com"
+        assert "magic-token" in sent[0][2]
+
+        db = SessionLocal()
+        try:
+            audit = (
+                db.query(AuditEvent)
+                .filter(AuditEvent.action == "auth.employee_magic_request")
+                .one()
+            )
+            assert audit.entity_id == employee_id
+        finally:
+            db.close()

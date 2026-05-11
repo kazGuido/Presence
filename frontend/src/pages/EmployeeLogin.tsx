@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { apiFetch, setEmployeeToken } from '../api/client';
 
-type Tab = 'pin' | 'otp' | 'magic';
+type Tab = 'magic' | 'password';
 
 export function EmployeeLogin() {
   const { t } = useTranslation();
@@ -20,18 +20,17 @@ export function EmployeeLogin() {
   const [tab, setTab] = useState<Tab>('magic');
   const [companySlug, setCompanySlug] = useState('demo-corp');
   const [employeeId, setEmployeeId] = useState('');
-  const [pin, setPin] = useState('1234');
-  const [otpCode, setOtpCode] = useState('');
+  const [password, setPassword] = useState('1234');
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const onPinSubmit = async (e: FormEvent) => {
+  const onPasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
     try {
       const res = await apiFetch('/api/auth/employee-login', {
         method: 'POST',
-        body: JSON.stringify({ company_slug: companySlug, employee_id: employeeId, pin }),
+        body: JSON.stringify({ company_slug: companySlug, employee_id: employeeId, password }),
         token: null,
       });
       const data = (await res.json()) as { access_token: string };
@@ -42,33 +41,16 @@ export function EmployeeLogin() {
     }
   };
 
-  const onOtpRequest = async () => {
+  const onMagicRequest = async () => {
     setErr(null);
     setInfo(null);
     try {
-      await apiFetch('/api/auth/employee-otp/request', {
+      await apiFetch('/api/auth/employee-magic/request', {
         method: 'POST',
         body: JSON.stringify({ company_slug: companySlug, employee_id: employeeId }),
         token: null,
       });
-      setInfo(t('employee.loginOtpHint'));
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : t('common.error'));
-    }
-  };
-
-  const onOtpVerify = async (e: FormEvent) => {
-    e.preventDefault();
-    setErr(null);
-    try {
-      const res = await apiFetch('/api/auth/employee-otp/verify', {
-        method: 'POST',
-        body: JSON.stringify({ company_slug: companySlug, employee_id: employeeId, code: otpCode }),
-        token: null,
-      });
-      const data = (await res.json()) as { access_token: string };
-      setEmployeeToken(data.access_token);
-      nav(afterLogin, { replace: true });
+      setInfo(t('employee.loginMagicSent'));
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : t('common.error'));
     }
@@ -139,7 +121,7 @@ export function EmployeeLogin() {
           </div>
 
           <div className="mb-6 flex gap-2 rounded-2xl border border-outline/15 bg-surface-container-low p-1">
-            {(['magic', 'otp', 'pin'] as const).map((k) => (
+            {(['magic', 'password'] as const).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -152,7 +134,7 @@ export function EmployeeLogin() {
                   tab === k ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                {k === 'magic' ? t('employee.loginTabMagic') : k === 'otp' ? t('employee.loginTabOtp') : t('employee.loginTabPin')}
+                {k === 'magic' ? t('employee.loginTabMagic') : t('employee.loginTabPassword')}
               </button>
             ))}
           </div>
@@ -172,13 +154,14 @@ export function EmployeeLogin() {
             />
           </div>
 
-          {tab === 'pin' && (
-            <form onSubmit={(e) => void onPinSubmit(e)} className="space-y-4">
+          {tab === 'password' && (
+            <form onSubmit={(e) => void onPasswordSubmit(e)} className="space-y-4">
               <input
+                type="password"
                 className="w-full rounded-2xl border border-outline/20 bg-surface px-4 py-3 outline-none ring-primary/20 focus:ring-4"
-                placeholder={t('employee.loginPin')}
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
+                placeholder={t('employee.loginPassword')}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
               {err && <p className="rounded-xl bg-error-container/50 px-3 py-2 text-sm text-error">{err}</p>}
               <button type="submit" className="pressable w-full rounded-2xl bg-primary py-3.5 font-bold text-on-primary shadow-lg shadow-primary/20">
@@ -187,33 +170,20 @@ export function EmployeeLogin() {
             </form>
           )}
 
-          {tab === 'otp' && (
-            <form onSubmit={(e) => void onOtpVerify(e)} className="space-y-4">
+          {tab === 'magic' && (
+            <div className="space-y-4">
               <p className="rounded-2xl bg-primary-container/30 px-4 py-3 text-sm leading-6 text-on-surface-variant">
-                {t('employee.loginOtpHint')}
+                {t('employee.loginMagicHint')}
               </p>
-              <button type="button" onClick={() => void onOtpRequest()} className="pressable w-full rounded-2xl border border-primary/40 bg-surface py-3 text-sm font-bold text-primary">
-                {t('employee.loginOtpRequest')}
+              <button type="button" onClick={() => void onMagicRequest()} className="pressable w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-on-primary shadow-lg shadow-primary/20">
+                {t('employee.loginMagicSend')}
               </button>
-              <input
-                className="w-full rounded-2xl border border-outline/20 bg-surface px-4 py-3 outline-none ring-primary/20 focus:ring-4"
-                placeholder={t('employee.loginOtpCode')}
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
-              />
               {err && <p className="rounded-xl bg-error-container/50 px-3 py-2 text-sm text-error">{err}</p>}
               {info && <p className="rounded-xl bg-primary-container/50 px-3 py-2 text-sm text-primary">{t('employee.loginMagicSent')}</p>}
-              <button type="submit" className="pressable w-full rounded-2xl bg-primary py-3.5 font-bold text-on-primary shadow-lg shadow-primary/20">
-                {t('employee.loginOtpVerify')}
-              </button>
-            </form>
-          )}
-
-          {tab === 'magic' && (
-            <div className="space-y-3 rounded-2xl border border-primary/15 bg-primary-container/25 p-4 text-sm text-on-surface-variant">
-              <p className="font-semibold text-on-surface">{t('employee.loginMagicHint')}</p>
-              <p>{t('employee.loginMagicEmployerNote')}</p>
-              <p className="text-xs">{t('employee.loginDemoHint')}</p>
+              <div className="space-y-2 rounded-2xl border border-primary/15 bg-primary-container/25 p-4 text-sm text-on-surface-variant">
+                <p>{t('employee.loginMagicEmployerNote')}</p>
+                <p className="text-xs">{t('employee.loginDemoHint')}</p>
+              </div>
             </div>
           )}
 

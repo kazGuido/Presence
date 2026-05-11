@@ -24,11 +24,26 @@ class TokenOut(BaseModel):
 class EmployeeLoginIn(BaseModel):
     company_slug: str
     employee_id: str
-    pin: str = Field(min_length=4, max_length=12)
+    password: str | None = Field(default=None, min_length=4, max_length=128)
+    pin: str | None = Field(default=None, min_length=4, max_length=12)
+
+    @model_validator(mode="after")
+    def password_or_pin_required(self) -> "EmployeeLoginIn":
+        if not (self.password or self.pin):
+            raise ValueError("Password is required")
+        return self
+
+    def password_value(self) -> str:
+        return self.password or self.pin or ""
 
 
 class EmployeeMagicConsumeIn(BaseModel):
     token: str = Field(min_length=20)
+
+
+class EmployeeMagicRequestIn(BaseModel):
+    company_slug: str
+    employee_id: str
 
 
 class EmployeeOtpRequestIn(BaseModel):
