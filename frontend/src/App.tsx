@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { CapacitorNotificationBridge } from './components/CapacitorNotificationBridge';
 import { EmployeeShell } from './components/EmployeeShell';
