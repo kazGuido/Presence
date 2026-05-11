@@ -21,6 +21,7 @@ function AuthShell({
     t('auth.onboardingStepTeam'),
     t('auth.onboardingStepInvite'),
   ];
+  const assistantBody = side === 'register' ? t('auth.assistantBodyRegister') : t('auth.assistantBodyLogin');
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(76,86,177,0.16),transparent_30rem),linear-gradient(135deg,#f8fbff,#fff7ed)] px-4 py-6">
@@ -42,6 +43,7 @@ function AuthShell({
       <div className="mx-auto mt-10 grid max-w-6xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
         <aside className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/70 p-8 shadow-2xl shadow-primary/10 backdrop-blur">
           <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-2xl" />
+          <div className="absolute -bottom-20 left-8 h-44 w-44 rounded-full bg-secondary/10 blur-2xl" />
           <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">
             {side === 'register' ? t('auth.companyOnboarding') : t('auth.secureWorkspace')}
           </p>
@@ -59,6 +61,31 @@ function AuthShell({
                 <span className="text-sm font-semibold text-on-surface">{step}</span>
               </div>
             ))}
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-primary/15 bg-primary text-on-primary p-5 shadow-xl shadow-primary/20">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/15">
+                <span className="material-symbols-outlined">support_agent</span>
+              </span>
+              <div>
+                <p className="text-sm font-black uppercase tracking-wide text-white/75">{t('auth.assistantTitle')}</p>
+                <p className="mt-1 text-sm leading-6 text-white/90">{assistantBody}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-4">
+              <span className="material-symbols-outlined text-primary">route</span>
+              <p className="mt-2 text-sm font-bold text-on-surface">{t('auth.adminGuideTitle')}</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">{t('auth.adminGuideBody')}</p>
+            </div>
+            <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-4">
+              <span className="material-symbols-outlined text-primary">shield_lock</span>
+              <p className="mt-2 text-sm font-bold text-on-surface">{t('auth.complianceTitle')}</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">{t('auth.complianceBody')}</p>
+            </div>
           </div>
         </aside>
 
@@ -120,6 +147,15 @@ export function EmployerLogin() {
           {t('auth.signIn')}
         </button>
       </form>
+      <div className="mt-5 rounded-2xl border border-primary/10 bg-primary-container/30 p-4">
+        <div className="flex gap-3">
+          <span className="material-symbols-outlined text-primary">tips_and_updates</span>
+          <div>
+            <p className="text-sm font-bold text-on-surface">{t('auth.firstTimeTitle')}</p>
+            <p className="mt-1 text-sm leading-6 text-on-surface-variant">{t('auth.firstTimeLoginBody')}</p>
+          </div>
+        </div>
+      </div>
       <p className="mt-5 text-center text-sm text-on-surface-variant">
         {t('auth.noAccount')}{' '}
         <Link to="/employer/register" className="text-primary underline">
@@ -200,6 +236,15 @@ export function EmployerRegister() {
           {t('auth.createCompany')}
         </button>
       </form>
+      <div className="mt-5 rounded-2xl border border-primary/10 bg-primary-container/30 p-4">
+        <div className="flex gap-3">
+          <span className="material-symbols-outlined text-primary">auto_awesome</span>
+          <div>
+            <p className="text-sm font-bold text-on-surface">{t('auth.firstTimeTitle')}</p>
+            <p className="mt-1 text-sm leading-6 text-on-surface-variant">{t('auth.firstTimeRegisterBody')}</p>
+          </div>
+        </div>
+      </div>
       <p className="mt-5 text-center text-sm text-on-surface-variant">
         {t('auth.hasAccount')}{' '}
         <Link to="/employer/login" className="text-primary underline">

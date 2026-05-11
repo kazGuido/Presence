@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { apiFetch, setEmployeeToken } from '../api/client';
 
 type Tab = 'pin' | 'otp' | 'magic';
@@ -74,90 +75,160 @@ export function EmployeeLogin() {
   };
 
   return (
-    <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="mb-6 text-2xl font-semibold text-primary">{t('employee.loginTitle')}</h1>
-      <div className="mb-6 flex gap-2 rounded-xl border border-outline/15 bg-surface-container-low p-1">
-        {(['magic', 'otp', 'pin'] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => {
-              setTab(k);
-              setErr(null);
-              setInfo(null);
-            }}
-            className={`pressable flex-1 rounded-lg py-2 text-sm font-medium ${
-              tab === k ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            {k === 'magic' ? t('employee.loginTabMagic') : k === 'otp' ? t('employee.loginTabOtp') : t('employee.loginTabPin')}
-          </button>
-        ))}
+    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(76,86,177,0.18),transparent_30rem),linear-gradient(135deg,#f8fbff,#fff7ed)] px-4 py-6">
+      <header className="mx-auto flex max-w-6xl items-center justify-between">
+        <Link to="/" className="flex items-center gap-3">
+          <div className="hex-clip flex h-11 w-9 items-center justify-center bg-primary text-on-primary shadow-lg shadow-primary/20">
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+              badge
+            </span>
+          </div>
+          <div>
+            <p className="text-lg font-black">Presence</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/70">{t('employee.loginBadge')}</p>
+          </div>
+        </Link>
+        <LanguageToggle />
+      </header>
+
+      <div className="mx-auto mt-10 grid max-w-6xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <aside className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/70 p-7 shadow-2xl shadow-primary/10 backdrop-blur md:p-8">
+          <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-primary/10 blur-2xl" />
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">{t('employee.loginBadge')}</p>
+          <h1 className="mt-4 text-4xl font-black leading-tight tracking-[-0.04em] text-on-surface md:text-5xl">
+            {t('employee.loginTitle')}
+          </h1>
+          <p className="mt-4 text-lg leading-8 text-on-surface-variant">{t('employee.loginSubtitle')}</p>
+
+          <div className="mt-8 space-y-3">
+            {[
+              ['mark_email_read', t('employee.loginStepInvite')],
+              ['passkey', t('employee.loginStepChoose')],
+              ['touch_app', t('employee.loginStepPunch')],
+            ].map(([icon, label], index) => (
+              <div key={label} className="flex items-center gap-3 rounded-2xl bg-surface-container-lowest p-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-primary">
+                  <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-on-surface-variant">0{index + 1}</p>
+                  <p className="text-sm font-semibold text-on-surface">{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-3xl bg-primary p-5 text-on-primary shadow-xl shadow-primary/20">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/15">
+                <span className="material-symbols-outlined">support_agent</span>
+              </span>
+              <div>
+                <p className="text-sm font-black uppercase tracking-wide text-white/75">{t('employee.loginAssistantTitle')}</p>
+                <p className="mt-1 text-sm leading-6 text-white/90">{t('employee.loginAssistantBody')}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section className="rounded-[2rem] border border-outline/10 bg-surface-container-lowest p-6 shadow-xl shadow-primary/10 md:p-8">
+          <div className="mb-6">
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">{t('employee.loginCardKicker')}</p>
+            <h2 className="mt-2 text-2xl font-black text-on-surface">{t('employee.loginCardTitle')}</h2>
+            <p className="mt-1 text-sm text-on-surface-variant">{t('employee.loginCardBody')}</p>
+          </div>
+
+          <div className="mb-6 flex gap-2 rounded-2xl border border-outline/15 bg-surface-container-low p-1">
+            {(['magic', 'otp', 'pin'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => {
+                  setTab(k);
+                  setErr(null);
+                  setInfo(null);
+                }}
+                className={`pressable flex-1 rounded-xl py-2.5 text-sm font-bold ${
+                  tab === k ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {k === 'magic' ? t('employee.loginTabMagic') : k === 'otp' ? t('employee.loginTabOtp') : t('employee.loginTabPin')}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-4 space-y-3">
+            <input
+              className="w-full rounded-2xl border border-outline/20 bg-surface px-4 py-3 outline-none ring-primary/20 focus:ring-4"
+              placeholder={t('employee.loginSlug')}
+              value={companySlug}
+              onChange={(e) => setCompanySlug(e.target.value)}
+            />
+            <input
+              className="w-full rounded-2xl border border-outline/20 bg-surface px-4 py-3 font-mono text-sm outline-none ring-primary/20 focus:ring-4"
+              placeholder={t('employee.loginId')}
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+            />
+          </div>
+
+          {tab === 'pin' && (
+            <form onSubmit={(e) => void onPinSubmit(e)} className="space-y-4">
+              <input
+                className="w-full rounded-2xl border border-outline/20 bg-surface px-4 py-3 outline-none ring-primary/20 focus:ring-4"
+                placeholder={t('employee.loginPin')}
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+              />
+              {err && <p className="rounded-xl bg-error-container/50 px-3 py-2 text-sm text-error">{err}</p>}
+              <button type="submit" className="pressable w-full rounded-2xl bg-primary py-3.5 font-bold text-on-primary shadow-lg shadow-primary/20">
+                {t('employee.loginSubmit')}
+              </button>
+            </form>
+          )}
+
+          {tab === 'otp' && (
+            <form onSubmit={(e) => void onOtpVerify(e)} className="space-y-4">
+              <p className="rounded-2xl bg-primary-container/30 px-4 py-3 text-sm leading-6 text-on-surface-variant">
+                {t('employee.loginOtpHint')}
+              </p>
+              <button type="button" onClick={() => void onOtpRequest()} className="pressable w-full rounded-2xl border border-primary/40 bg-surface py-3 text-sm font-bold text-primary">
+                {t('employee.loginOtpRequest')}
+              </button>
+              <input
+                className="w-full rounded-2xl border border-outline/20 bg-surface px-4 py-3 outline-none ring-primary/20 focus:ring-4"
+                placeholder={t('employee.loginOtpCode')}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+              />
+              {err && <p className="rounded-xl bg-error-container/50 px-3 py-2 text-sm text-error">{err}</p>}
+              {info && <p className="rounded-xl bg-primary-container/50 px-3 py-2 text-sm text-primary">{t('employee.loginMagicSent')}</p>}
+              <button type="submit" className="pressable w-full rounded-2xl bg-primary py-3.5 font-bold text-on-primary shadow-lg shadow-primary/20">
+                {t('employee.loginOtpVerify')}
+              </button>
+            </form>
+          )}
+
+          {tab === 'magic' && (
+            <div className="space-y-3 rounded-2xl border border-primary/15 bg-primary-container/25 p-4 text-sm text-on-surface-variant">
+              <p className="font-semibold text-on-surface">{t('employee.loginMagicHint')}</p>
+              <p>{t('employee.loginMagicEmployerNote')}</p>
+              <p className="text-xs">{t('employee.loginDemoHint')}</p>
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-4">
+              <p className="text-sm font-bold text-on-surface">{t('employee.loginManualTitle')}</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">{t('employee.loginManualBody')}</p>
+            </div>
+            <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-4">
+              <p className="text-sm font-bold text-on-surface">{t('employee.loginHelpTitle')}</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">{t('employee.loginHelpBody')}</p>
+            </div>
+          </div>
+        </section>
       </div>
-
-      <div className="mb-4 space-y-3">
-        <input
-          className="w-full rounded border border-outline/30 px-3 py-2"
-          placeholder={t('employee.loginSlug')}
-          value={companySlug}
-          onChange={(e) => setCompanySlug(e.target.value)}
-        />
-        <input
-          className="w-full rounded border border-outline/30 px-3 py-2 font-mono text-sm"
-          placeholder={t('employee.loginId')}
-          value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-        />
-      </div>
-
-      {tab === 'pin' && (
-        <form onSubmit={(e) => void onPinSubmit(e)} className="space-y-4">
-          <input
-            className="w-full rounded border border-outline/30 px-3 py-2"
-            placeholder={t('employee.loginPin')}
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-          />
-          {err && <p className="text-sm text-error">{err}</p>}
-          <button type="submit" className="pressable w-full rounded-lg bg-primary py-3 text-on-primary">
-            {t('employee.loginSubmit')}
-          </button>
-        </form>
-      )}
-
-      {tab === 'otp' && (
-        <form onSubmit={(e) => void onOtpVerify(e)} className="space-y-4">
-          <p className="text-sm text-on-surface-variant">{t('employee.loginOtpHint')}</p>
-          <button type="button" onClick={() => void onOtpRequest()} className="pressable w-full rounded-lg border border-primary py-2 text-sm font-medium text-primary">
-            {t('employee.loginOtpRequest')}
-          </button>
-          <input
-            className="w-full rounded border border-outline/30 px-3 py-2"
-            placeholder={t('employee.loginOtpCode')}
-            value={otpCode}
-            onChange={(e) => setOtpCode(e.target.value)}
-          />
-          {err && <p className="text-sm text-error">{err}</p>}
-          {info && <p className="text-sm text-primary">{t('employee.loginMagicSent')}</p>}
-          <button type="submit" className="pressable w-full rounded-lg bg-primary py-3 text-on-primary">
-            {t('employee.loginOtpVerify')}
-          </button>
-        </form>
-      )}
-
-      {tab === 'magic' && (
-        <div className="space-y-3 rounded-xl border border-outline/15 bg-surface-container-low p-4 text-sm text-on-surface-variant">
-          <p>{t('employee.loginMagicHint')}</p>
-          <p className="text-xs">{t('employee.loginDemoHint')}</p>
-          <p className="text-xs text-on-surface-variant/80">
-            Magic links are sent by your employer from the team page (&quot;{t('employer.employeesSendMagic')}&quot;).
-          </p>
-        </div>
-      )}
-
-      {tab !== 'magic' && (
-        <p className="mt-6 text-center text-sm text-on-surface-variant">{t('employee.loginDemoHint')}</p>
-      )}
-    </div>
+    </main>
   );
 }
