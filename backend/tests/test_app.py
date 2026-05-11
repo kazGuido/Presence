@@ -438,7 +438,7 @@ def test_employee_can_request_magic_link_without_account_enumeration(monkeypatch
 
         missing_response = client.post(
             "/api/auth/employee-magic/request",
-            json={"company_slug": "missing", "employee_id": "not-found"},
+            json={"company_slug": "missing", "employee_id": "not-found", "next": "/employee/scan-kiosk/abc"},
         )
         assert missing_response.status_code == 200
         assert missing_response.json() == {"ok": True}
@@ -446,12 +446,13 @@ def test_employee_can_request_magic_link_without_account_enumeration(monkeypatch
 
         response = client.post(
             "/api/auth/employee-magic/request",
-            json={"company_slug": "acme", "employee_id": employee_id},
+            json={"company_slug": "acme", "employee_id": employee_id, "next": "/employee/scan-kiosk/abc"},
         )
         assert response.status_code == 200
         assert response.json() == {"ok": True}
         assert sent[0][0] == "ada@example.com"
         assert "magic-token" in sent[0][2]
+        assert "next=%2Femployee%2Fscan-kiosk%2Fabc" in sent[0][2]
 
         db = SessionLocal()
         try:
@@ -556,3 +557,86 @@ def test_super_admin_weekly_report_send_uses_configured_recipients(monkeypatch, 
         )
         assert response.status_code == 200
         assert response.json()["sent"] == 2
+
+
+def test_employee_can_scan_kiosk_qr_and_record_punch(monkeypatch, tmp_path):
+    app_module = load_app(monkeypatch, tmp_path)
+
+    class FakeRedis:
+        def __init__(self):
+            self.store: dict[str, str] = {}
+
+        def setex(self, key, ttl, value):
+            self.store[key] = value
+
+        def get(self, key):
+            return self.store.get(key)
+
+    fake_redis = FakeRedis()
+
+    with TestClient(app_module.app) as client:
+        from app.core.database import SessionLocal
+        from app.core.security import create_access_token
+        from app.models import Company, Employee, Punch, PunchSource, WorkSite
+        from app.routers import controller_sessions
+
+        monkeypatch.setattr(controller_sessions, "get_redis", lambda: fake_redis)
+
+        db = SessionLocal()
+        try:
+            company = Company(name="Acme", slug="acme")
+            db.add(company)
+            db.flush()
+            site = WorkSite(company_id=company.id, name="HQ", lat=5.0, lng=-4.0, radius_m=100.0)
+            db.add(site)
+            db.flush()
+            host = Employee(
+                company_id=company.id,
+                display_name="Host",
+                pin_hash="unused",
+                can_show_controller_ui=True,
+                default_work_site_id=site.id,
+            )
+            scanner = Employee(
+                company_id=company.id,
+                display_name="Scanner",
+                pin_hash="unused",
+                default_work_site_id=site.id,
+            )
+            db.add_all([host, scanner])
+            db.commit()
+            host_token = create_access_token(
+                {"sub": host.id, "typ": "employee", "company_id": company.id, "employee_id": host.id}
+            )
+            scanner_token = create_access_token(
+                {"sub": scanner.id, "typ": "employee", "company_id": company.id, "employee_id": scanner.id}
+            )
+            scanner_id = scanner.id
+        finally:
+            db.close()
+
+        session_response = client.post(
+            "/api/controller-sessions",
+            headers={"Authorization": f"Bearer {host_token}"},
+        )
+        assert session_response.status_code == 201
+        kiosk_token = session_response.json()["kiosk_token"]
+
+        punch_response = client.post(
+            f"/api/controller-sessions/{kiosk_token}/punch",
+            headers={"Authorization": f"Bearer {scanner_token}"},
+            data={"kind": "punch_in", "lat": "5.0001", "lng": "-4.0001", "location_unavailable": "false"},
+        )
+        assert punch_response.status_code == 201
+        body = punch_response.json()
+        assert body["employee_id"] == scanner_id
+        assert body["source"] == "controller_scan"
+        assert body["within_geofence"] is True
+
+        db = SessionLocal()
+        try:
+            punch = db.get(Punch, body["id"])
+            assert punch.source == PunchSource.controller_scan
+            assert punch.employee_id == scanner_id
+        finally:
+            db.close()

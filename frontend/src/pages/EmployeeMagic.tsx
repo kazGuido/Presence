@@ -11,6 +11,9 @@ export function EmployeeMagic() {
 
   useEffect(() => {
     const token = params.get('token');
+    const next = params.get('next');
+    const afterLogin =
+      next && next.startsWith('/employee') && !next.includes('//') ? next : '/employee/loading';
     if (!token) {
       setErr(t('employee.scanNoToken'));
       return;
@@ -23,7 +26,7 @@ export function EmployeeMagic() {
       .then(async (r) => (await r.json()) as { access_token: string })
       .then((d) => {
         setEmployeeToken(d.access_token);
-        nav('/employee/loading', { replace: true });
+        nav(afterLogin, { replace: true });
       })
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)));
   }, [params, nav, t]);

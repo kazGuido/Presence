@@ -49,6 +49,7 @@ class EmployeeMagicConsumeIn(BaseModel):
 class EmployeeMagicRequestIn(BaseModel):
     company_slug: str
     employee_id: str
+    next: str | None = Field(default=None, max_length=512)
 
 
 class EmployeeOtpRequestIn(BaseModel):

@@ -47,7 +47,7 @@ export function EmployeeLogin() {
     try {
       await apiFetch('/api/auth/employee-magic/request', {
         method: 'POST',
-        body: JSON.stringify({ company_slug: companySlug, employee_id: employeeId }),
+        body: JSON.stringify({ company_slug: companySlug, employee_id: employeeId, next: afterLogin }),
         token: null,
       });
       setInfo(t('employee.loginMagicSent'));

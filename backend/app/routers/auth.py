@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import secrets
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -215,7 +216,11 @@ def employee_magic_request(
 
     settings = get_settings()
     base = settings.public_app_url.rstrip("/")
-    link = f"{base}/employee/magic?token={token}"
+    params: dict[str, str] = {"token": token}
+    next_path = (body.next or "").strip()
+    if next_path.startswith("/employee") and "//" not in next_path:
+        params["next"] = next_path
+    link = f"{base}/employee/magic?{urlencode(params)}"
     try:
         send_plain_email(
             emp.email,
